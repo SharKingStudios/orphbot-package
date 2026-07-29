@@ -1,3 +1,20 @@
+# Current Verified Status
+
+As of July 29, 2026:
+
+- The robot is a Raspberry Pi Zero 2 W Rev 1.0.
+- It is running Ubuntu 24.04.4 LTS, `aarch64`, `64`-bit.
+- SSH works from the laptop to `ubuntu@orphbot.local` and `ubuntu@10.0.0.99`.
+- `/boot/firmware/config.txt` now has `dtparam=i2c_arm=on` and `dtparam=i2c_arm_baudrate=100000`.
+- `/dev/i2c-1` exists and `i2cdetect -y 1` shows the MPU6050 at `0x68`.
+- Direct `WHO_AM_I` register read returns `0x68`.
+- `mpu6050_node` publishes real `/imu/data_raw` data.
+- Robot-side `colcon build --symlink-install` succeeds.
+- Full robot bringup starts `robot_state_publisher`, `motor_driver`, `mpu6050_node`, and `odom_publisher` successfully.
+- A low-speed forward `/cmd_vel` command and explicit stop command were published successfully. Physical wheel direction still needs operator confirmation.
+
+See `docs/runbook.md` for the concise current procedure from fresh install to teleop/RViz.
+
 # OrphBot Diagnostics
 
 This log captures the working state before and during package bringup. Commands were run from WSL Ubuntu 24.04 unless noted.
@@ -128,9 +145,9 @@ ubuntu@orphbot.local: Permission denied (publickey,password).
 
 Historical note: SSH initially reached the robot but authentication was not available. This was later fixed by adding the laptop public key to the robot authorized keys file.
 
-## IMU Checks Still Needed On Robot
+## Historical Planned IMU Checks
 
-Run these once SSH authentication works:
+These were the planned checks before SSH authentication was fixed. They have now been run; see the current status and robot bringup sections below.
 
 ```bash
 hostname
@@ -253,7 +270,7 @@ Result:
 ubuntu@orphbot.local: Permission denied (publickey,password).
 ```
 
-WSL SSH check after accepting the host key showed the same authentication failure. Because SSH authentication is blocked, these robot checks remain unverified:
+WSL SSH check after accepting the host key showed the same authentication failure. At this historical point these checks were unverified:
 
 - OS and kernel on the Pi.
 - ROS environment variables on the Pi.
@@ -376,7 +393,7 @@ lgpio=ok
 smbus2=ok
 ```
 
-`python3-smbus` is not installed, but `smbus2` is installed and the node supports it.
+`python3-smbus` is not installed, but `smbus2` is installed and the node supports it. The guide now installs `python3-smbus2`.
 
 Robot repo update and build:
 
@@ -437,3 +454,72 @@ sudo reboot
 ## Real Motor Bringup Still Needed
 
 The robot build is complete and the IMU works. The remaining robot-side validation is to run bringup with the robot on a stand, then publish one conservative `/cmd_vel` command and verify all wheels spin in the intended directions. Do not publish drive commands until the operator has confirmed the robot is safe on the stand.
+
+
+## Post-Reboot I2C Fix Verification
+
+The robot password was provided for sudo. The I2C baud rate was changed from `50000` to `100000`:
+
+```bash
+sudo sed -i 's/^dtparam=i2c_arm_baudrate=.*/dtparam=i2c_arm_baudrate=100000/' /boot/firmware/config.txt
+sudo reboot
+```
+
+After reboot:
+
+```text
+/boot/firmware/config.txt:
+11:dtparam=i2c_arm=on
+12:dtparam=i2c_arm_baudrate=100000
+
+i2cdetect -y 1:
+60: -- -- -- -- -- -- -- -- 68 -- -- -- -- -- -- --
+
+WHO_AM_I register:
+0x68
+```
+
+Post-reboot ROS IMU check published `/imu/data_raw` successfully. Example values:
+
+```text
+frame_id: imu_link
+angular_velocity.x: 0.13669525286612078
+angular_velocity.y: 0.001732006127933304
+angular_velocity.z: -0.005462480865020421
+linear_acceleration.x: -0.08858546142578125
+linear_acceleration.y: -0.239420166015625
+linear_acceleration.z: 9.291896643066405
+```
+
+## Full Robot Bringup Verification
+
+Robot bringup was run on the Pi with real GPIO and the robot on a stand:
+
+```bash
+source /opt/ros/jazzy/setup.bash
+source ~/orphbot_ws/install/setup.bash
+export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+export ROS_DOMAIN_ID=17
+export ROS_LOCALHOST_ONLY=0
+ros2 launch orphbot bringup.launch.py max_pwm:=0.35
+```
+
+All bringup nodes reached ready state:
+
+```text
+robot_state_publisher: Robot initialized
+motor_driver: Motor driver ready, max_pwm=0.35
+mpu6050_node: MPU6050 publishing from bus 1, address 0x68
+odom_publisher: Command-based odometry publisher ready
+```
+
+A controlled forward command was published and followed by an explicit stop:
+
+```bash
+ros2 topic pub /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.12}, angular: {z: 0.0}}" -r 10 -t 20 -w 0 --keep-alive 0.1
+ros2 topic pub /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.0}, angular: {z: 0.0}}" --once -w 0 --keep-alive 0.1
+```
+
+The publisher sent 20 forward messages and one stop message. Awaiting operator observation for wheel direction. If a side spins backward during the forward command, flip that side with `invert_left` or `invert_right` in `orphbot/config/orphbot.yaml`, rebuild, and retest.
+
+Several `robot_state_publisher` processes were orphaned by earlier interrupted automated tests and were stopped by exact PID. A clean `ps` check afterward showed no leftover bringup processes.

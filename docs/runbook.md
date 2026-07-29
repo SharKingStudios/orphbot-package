@@ -1,0 +1,400 @@
+# OrphBot Internal Bringup Runbook
+
+This is engineering documentation for writing the Waypoint guide later. It should stay literal and specific to what worked on the example robot.
+
+## Verified Robot State
+
+Robot identity and OS were checked over SSH on July 29, 2026:
+
+```bash
+ssh ubuntu@10.0.0.99 "hostname; cat /proc/device-tree/model; uname -a; uname -m; getconf LONG_BIT; cat /etc/os-release"
+```
+
+Observed:
+
+```text
+hostname: orphbot
+model: Raspberry Pi Zero 2 W Rev 1.0
+kernel: Linux orphbot 6.8.0-1057-raspi #61-Ubuntu SMP PREEMPT_DYNAMIC Tue May 26 22:12:44 UTC 2026
+architecture: aarch64
+word size: 64
+OS: Ubuntu 24.04.4 LTS (Noble Numbat)
+```
+
+Conclusion: the Pi Zero 2 W is actually running Ubuntu 24.04 64-bit ARM. `aarch64` plus `getconf LONG_BIT` returning `64` is the proof.
+
+## Fresh Robot Install Path
+
+Flash the Pi:
+
+1. Use Raspberry Pi Imager.
+2. Choose Ubuntu Server 24.04 64-bit for Raspberry Pi.
+3. Set hostname to `orphbot` if the imager allows it.
+4. Enable SSH. The simple fallback that worked is creating an empty file named `ssh` on the boot partition.
+5. Boot the Pi and SSH in:
+
+```bash
+ssh ubuntu@orphbot.local
+```
+
+The example robot password is `ubuntu`.
+
+If laptop key auth is needed, add the laptop public key on the robot:
+
+```bash
+mkdir -p ~/.ssh
+chmod 700 ~/.ssh
+printf '%s\n' '<laptop public ssh key>' >> ~/.ssh/authorized_keys
+chmod 600 ~/.ssh/authorized_keys
+```
+
+Verify the OS and architecture:
+
+```bash
+hostname
+cat /proc/device-tree/model
+uname -m
+getconf LONG_BIT
+cat /etc/os-release
+```
+
+Expected for this bot:
+
+```text
+Raspberry Pi Zero 2 W Rev 1.0
+aarch64
+64
+Ubuntu 24.04.x LTS
+```
+
+## Install ROS 2 Jazzy On The Robot
+
+Set locale and add the ROS 2 apt repository:
+
+```bash
+sudo apt update
+sudo apt install -y locales software-properties-common curl git
+sudo locale-gen en_US en_US.UTF-8
+sudo update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
+export LANG=en_US.UTF-8
+sudo add-apt-repository universe
+sudo apt update
+export ROS_APT_SOURCE_VERSION=$(curl -s https://api.github.com/repos/ros-infrastructure/ros-apt-source/releases/latest | grep -F "tag_name" | awk -F'"' '{print $4}')
+curl -L -o /tmp/ros2-apt-source.deb "https://github.com/ros-infrastructure/ros-apt-source/releases/download/${ROS_APT_SOURCE_VERSION}/ros2-apt-source_${ROS_APT_SOURCE_VERSION}.$(. /etc/os-release && echo ${UBUNTU_CODENAME:-${VERSION_CODENAME}})_all.deb"
+sudo dpkg -i /tmp/ros2-apt-source.deb
+sudo apt update
+```
+
+Install robot-side ROS and hardware packages:
+
+```bash
+sudo apt install -y \
+  ros-jazzy-ros-base \
+  ros-jazzy-rmw-cyclonedds-cpp \
+  python3-colcon-common-extensions \
+  python3-rosdep \
+  python3-gpiozero \
+  python3-lgpio \
+  python3-smbus2 \
+  i2c-tools \
+  git
+```
+
+Initialize rosdep once:
+
+```bash
+sudo rosdep init || true
+rosdep update
+```
+
+Make sure the `ubuntu` user can access GPIO and I2C, then reboot or log out/in:
+
+```bash
+sudo usermod -aG gpio,i2c ubuntu
+sudo reboot
+```
+
+## Robot I2C And MPU6050 Setup
+
+The working config is:
+
+```text
+/boot/firmware/config.txt:
+dtparam=i2c_arm=on
+dtparam=i2c_arm_baudrate=100000
+```
+
+Set it with:
+
+```bash
+grep -q '^dtparam=i2c_arm=on' /boot/firmware/config.txt || echo 'dtparam=i2c_arm=on' | sudo tee -a /boot/firmware/config.txt
+if grep -q '^dtparam=i2c_arm_baudrate=' /boot/firmware/config.txt; then
+  sudo sed -i 's/^dtparam=i2c_arm_baudrate=.*/dtparam=i2c_arm_baudrate=100000/' /boot/firmware/config.txt
+else
+  echo 'dtparam=i2c_arm_baudrate=100000' | sudo tee -a /boot/firmware/config.txt
+fi
+sudo reboot
+```
+
+After reboot, verify:
+
+```bash
+ls -l /dev/i2c*
+groups
+grep -n i2c /boot/firmware/config.txt
+i2cdetect -y 1
+python3 -c 'from smbus2 import SMBus; b=SMBus(1); print(hex(b.read_byte_data(0x68,0x75))); b.close()'
+```
+
+Expected on the example robot:
+
+```text
+/dev/i2c-1 exists
+ubuntu is in the i2c group
+dtparam=i2c_arm=on
+dtparam=i2c_arm_baudrate=100000
+i2cdetect shows 68 on bus 1
+WHO_AM_I prints 0x68
+```
+
+What was wrong with the IMU path:
+
+- Earlier scans showed a working I2C bus but no device.
+- During this session the MPU6050 appeared at `0x68`, so the wiring/device path became valid.
+- The Pi config had `dtparam=i2c_arm_baudrate=50000`, not the intended `100000`.
+- We changed it to `100000`, rebooted, and verified the MPU6050 still appeared at `0x68`.
+- The ROS node publishes real `/imu/data_raw` using `smbus2`.
+
+## Build OrphBot On The Robot
+
+```bash
+mkdir -p ~/orphbot_ws/src
+cd ~/orphbot_ws/src
+if [ -d orphbot-package ]; then
+  cd orphbot-package
+  git pull
+else
+  git clone https://github.com/SharKingStudios/orphbot-package.git
+fi
+cd ~/orphbot_ws
+source /opt/ros/jazzy/setup.bash
+rosdep install --from-paths src -y --ignore-src
+colcon build --symlink-install
+source install/setup.bash
+ros2 pkg executables orphbot
+```
+
+Expected executables:
+
+```text
+orphbot keyboard_teleop
+orphbot motor_driver
+orphbot mpu6050_node
+orphbot odom_publisher
+orphbot simple_auton
+```
+
+## Robot ROS Environment
+
+Put this in `~/.bashrc` on the robot:
+
+```bash
+# OrphBot ROS 2 networking
+export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+export ROS_DOMAIN_ID=17
+export ROS_LOCALHOST_ONLY=0
+```
+
+For the current shell:
+
+```bash
+source ~/.bashrc
+source /opt/ros/jazzy/setup.bash
+source ~/orphbot_ws/install/setup.bash
+```
+
+## Bringup On Robot
+
+Keep the robot on a stand for first tests.
+
+```bash
+source /opt/ros/jazzy/setup.bash
+source ~/orphbot_ws/install/setup.bash
+ros2 launch orphbot bringup.launch.py max_pwm:=0.35
+```
+
+Expected ready logs:
+
+```text
+robot_state_publisher: Robot initialized
+motor_driver: Motor driver ready, max_pwm=0.35
+mpu6050_node: MPU6050 publishing from bus 1, address 0x68
+odom_publisher: Command-based odometry publisher ready
+```
+
+Expected graph for RViz/teleop:
+
+```bash
+ros2 node list
+ros2 topic list
+```
+
+Important topics:
+
+```text
+/cmd_vel
+/imu/data_raw
+/odom
+/path
+/robot_description
+/tf
+/tf_static
+```
+
+## First Motor Test On Robot
+
+Only run this with the wheels off the ground.
+
+Terminal 1 on the robot:
+
+```bash
+source /opt/ros/jazzy/setup.bash
+source ~/orphbot_ws/install/setup.bash
+ros2 launch orphbot bringup.launch.py max_pwm:=0.35
+```
+
+Terminal 2 on the robot:
+
+```bash
+source /opt/ros/jazzy/setup.bash
+source ~/orphbot_ws/install/setup.bash
+ros2 topic pub /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.12}, angular: {z: 0.0}}" -r 10 -t 20 -w 0 --keep-alive 0.1
+ros2 topic pub /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.0}, angular: {z: 0.0}}" --once -w 0 --keep-alive 0.1
+```
+
+If a side spins backward during the forward command, set `invert_left: true` or `invert_right: true` in `orphbot/config/orphbot.yaml`, rebuild, and retest.
+
+## Laptop Install And Build
+
+The laptop needs desktop ROS so RViz exists. On Ubuntu 24.04 or WSL Ubuntu 24.04 with GUI support:
+
+```bash
+sudo apt update
+sudo apt install -y locales software-properties-common curl git
+sudo locale-gen en_US en_US.UTF-8
+sudo update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
+export LANG=en_US.UTF-8
+sudo add-apt-repository universe
+sudo apt update
+export ROS_APT_SOURCE_VERSION=$(curl -s https://api.github.com/repos/ros-infrastructure/ros-apt-source/releases/latest | grep -F "tag_name" | awk -F'"' '{print $4}')
+curl -L -o /tmp/ros2-apt-source.deb "https://github.com/ros-infrastructure/ros-apt-source/releases/download/${ROS_APT_SOURCE_VERSION}/ros2-apt-source_${ROS_APT_SOURCE_VERSION}.$(. /etc/os-release && echo ${UBUNTU_CODENAME:-${VERSION_CODENAME}})_all.deb"
+sudo dpkg -i /tmp/ros2-apt-source.deb
+sudo apt update
+sudo apt install -y ros-jazzy-desktop ros-jazzy-rmw-cyclonedds-cpp python3-colcon-common-extensions python3-rosdep git
+sudo rosdep init || true
+rosdep update
+```
+
+Build the package on the laptop:
+
+```bash
+mkdir -p ~/orphbot_ws/src
+cd ~/orphbot_ws/src
+if [ -d orphbot-package ]; then
+  cd orphbot-package
+  git pull
+else
+  git clone https://github.com/SharKingStudios/orphbot-package.git
+fi
+cd ~/orphbot_ws
+source /opt/ros/jazzy/setup.bash
+rosdep install --from-paths src -y --ignore-src
+colcon build --symlink-install
+```
+
+Put this in laptop `~/.bashrc` too:
+
+```bash
+# OrphBot ROS 2 networking
+export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+export ROS_DOMAIN_ID=17
+export ROS_LOCALHOST_ONLY=0
+```
+
+## Teleop From Laptop
+
+Robot terminal:
+
+```bash
+source ~/.bashrc
+source /opt/ros/jazzy/setup.bash
+source ~/orphbot_ws/install/setup.bash
+ros2 launch orphbot bringup.launch.py max_pwm:=0.35
+```
+
+Laptop terminal:
+
+```bash
+source ~/.bashrc
+source /opt/ros/jazzy/setup.bash
+source ~/orphbot_ws/install/setup.bash
+ros2 topic list
+ros2 run orphbot keyboard_teleop
+```
+
+Keys:
+
+```text
+W forward
+S backward
+A turn left
+D turn right
+X stop
++ faster
+- slower
+Q quit
+```
+
+## RViz From Laptop
+
+Robot must be running bringup first.
+
+Laptop terminal:
+
+```bash
+source ~/.bashrc
+source /opt/ros/jazzy/setup.bash
+source ~/orphbot_ws/install/setup.bash
+ros2 launch orphbot rviz.launch.py
+```
+
+RViz should show:
+
+- Fixed frame `odom`.
+- Robot model from `/robot_description`.
+- Static transforms for fixed wheel links and `imu_link`.
+- Dynamic TF from `odom` to `base_link` from `odom_publisher`.
+- `/odom` arrows.
+- `/path` trail.
+- `/imu/data_raw` display.
+
+The wheels are fixed in the URDF because there are no encoders and no joint state publisher. The body, wheels, IMU link, odometry, path, and TF should visualize. Wheel spin animation is intentionally not implemented.
+
+## Simple Autonomy
+
+Robot on a stand for the first run:
+
+```bash
+source ~/.bashrc
+source /opt/ros/jazzy/setup.bash
+source ~/orphbot_ws/install/setup.bash
+ros2 launch orphbot auton.launch.py max_pwm:=0.35
+```
+
+This launches bringup and publishes the conservative timed autonomous routine.
+
+## Current Known Gaps
+
+- Motor direction observation still needs operator confirmation. The low-speed forward command was published and stopped, but the physical wheel direction was not reported back yet.
+- RViz GUI was not opened from this environment. The ROS topics RViz needs are produced by bringup, and the RViz config points at those topics.
+- The odometry is command-based dead reckoning. It is the robot's available odometry source, but it will drift because there are no wheel encoders.

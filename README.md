@@ -68,17 +68,34 @@ On the robot, install a minimal ROS setup plus robot hardware tools:
 
 ```bash
 sudo apt update
-sudo apt install -y software-properties-common curl gnupg lsb-release
+sudo apt install -y locales software-properties-common curl git
+sudo locale-gen en_US en_US.UTF-8
+sudo update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
+export LANG=en_US.UTF-8
 sudo add-apt-repository universe
 sudo apt update
-sudo apt install -y ros-jazzy-ros-base python3-colcon-common-extensions python3-rosdep python3-gpiozero python3-lgpio python3-smbus i2c-tools git
+export ROS_APT_SOURCE_VERSION=$(curl -s https://api.github.com/repos/ros-infrastructure/ros-apt-source/releases/latest | grep -F "tag_name" | awk -F'"' '{print $4}')
+curl -L -o /tmp/ros2-apt-source.deb "https://github.com/ros-infrastructure/ros-apt-source/releases/download/${ROS_APT_SOURCE_VERSION}/ros2-apt-source_${ROS_APT_SOURCE_VERSION}.$(. /etc/os-release && echo ${UBUNTU_CODENAME:-${VERSION_CODENAME}})_all.deb"
+sudo dpkg -i /tmp/ros2-apt-source.deb
+sudo apt update
+sudo apt install -y ros-jazzy-ros-base ros-jazzy-rmw-cyclonedds-cpp python3-colcon-common-extensions python3-rosdep python3-gpiozero python3-lgpio python3-smbus2 i2c-tools git
 ```
 
 On the laptop, install the desktop tools so RViz is available:
 
 ```bash
 sudo apt update
-sudo apt install -y ros-jazzy-desktop python3-colcon-common-extensions python3-rosdep git
+sudo apt install -y locales software-properties-common curl git
+sudo locale-gen en_US en_US.UTF-8
+sudo update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
+export LANG=en_US.UTF-8
+sudo add-apt-repository universe
+sudo apt update
+export ROS_APT_SOURCE_VERSION=$(curl -s https://api.github.com/repos/ros-infrastructure/ros-apt-source/releases/latest | grep -F "tag_name" | awk -F'"' '{print $4}')
+curl -L -o /tmp/ros2-apt-source.deb "https://github.com/ros-infrastructure/ros-apt-source/releases/download/${ROS_APT_SOURCE_VERSION}/ros2-apt-source_${ROS_APT_SOURCE_VERSION}.$(. /etc/os-release && echo ${UBUNTU_CODENAME:-${VERSION_CODENAME}})_all.deb"
+sudo dpkg -i /tmp/ros2-apt-source.deb
+sudo apt update
+sudo apt install -y ros-jazzy-desktop ros-jazzy-rmw-cyclonedds-cpp python3-colcon-common-extensions python3-rosdep git
 ```
 
 Initialize `rosdep` once per machine if it has not been initialized:
@@ -98,7 +115,14 @@ export ROS_DOMAIN_ID=17
 export ROS_LOCALHOST_ONLY=0
 ```
 
-For convenience, add those lines to `~/.bashrc` on both machines.
+For convenience, add those lines to `~/.bashrc` on both machines. The robot should have this block near the end of `~/.bashrc`:
+
+```bash
+# OrphBot ROS 2 networking
+export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+export ROS_DOMAIN_ID=17
+export ROS_LOCALHOST_ONLY=0
+```
 
 ## Clone And Build
 
@@ -136,6 +160,15 @@ ros2 launch orphbot bringup.launch.py max_pwm:=0.35
 ```
 
 The bringup starts the motor driver, robot description, odometry, and MPU6050 node. If the IMU is not detected, fix I2C before treating the robot as complete.
+
+For a first controlled motor check from another terminal on the robot, keep the robot on the stand and publish a short slow command:
+
+```bash
+source /opt/ros/jazzy/setup.bash
+source ~/orphbot_ws/install/setup.bash
+ros2 topic pub /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.12}, angular: {z: 0.0}}" -r 10 -t 20 -w 0 --keep-alive 0.1
+ros2 topic pub /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.0}, angular: {z: 0.0}}" --once -w 0 --keep-alive 0.1
+```
 
 ## Drive From The Laptop
 
@@ -188,6 +221,13 @@ dtparam=i2c_arm=on
 dtparam=i2c_arm_baudrate=100000
 ```
 
+If the baud rate is different, set it and reboot:
+
+```bash
+sudo sed -i 's/^dtparam=i2c_arm_baudrate=.*/dtparam=i2c_arm_baudrate=100000/' /boot/firmware/config.txt
+sudo reboot
+```
+
 If AD0 is connected to GND, expect `0x68`. If AD0 is connected to 3V3, expect `0x69`.
 
 If bus 1 shows all `--`, scan every I2C bus:
@@ -212,3 +252,5 @@ ros2 topic list
 If SSH was not enabled during imaging, shut down the Pi, mount the boot partition, and create the empty `ssh` file again.
 
 Optional tools like `htop`, router client lists, and advanced Cyclone DDS XML configs are useful for debugging, but they are not part of the main path.
+
+For the exact internal procedure, see `docs/runbook.md`.
