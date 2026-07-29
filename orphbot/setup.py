@@ -35,6 +35,7 @@ setup(
             'motor_test = orphbot.motor_test:main',
             'mpu6050_node = orphbot.mpu6050_node:main',
             'odom_publisher = orphbot.odom_publisher:main',
+            'robot_description_publisher = orphbot.robot_description_publisher:main',
             'simple_auton = orphbot.simple_auton:main',
         ],
     },

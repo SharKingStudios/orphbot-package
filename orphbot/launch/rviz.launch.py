@@ -11,20 +11,21 @@ def generate_launch_description():
     package_share = get_package_share_directory('orphbot')
     urdf_path = f'{package_share}/urdf/robot.urdf.xacro'
     rviz_path = f'{package_share}/rviz/orphbot.rviz'
-    use_robot_state_publisher = LaunchConfiguration('use_robot_state_publisher')
+    use_description_publisher = LaunchConfiguration('use_description_publisher')
     robot_description = ParameterValue(
         Command(['xacro ', urdf_path]),
         value_type=str,
     )
 
     return LaunchDescription([
-        DeclareLaunchArgument('use_robot_state_publisher', default_value='false'),
+        DeclareLaunchArgument('use_description_publisher', default_value='false'),
         Node(
-            package='robot_state_publisher',
-            executable='robot_state_publisher',
-            name='laptop_robot_state_publisher',
+            package='orphbot',
+            executable='robot_description_publisher',
+            name='laptop_robot_description_publisher',
+            output='screen',
             parameters=[{'robot_description': robot_description}],
-            condition=IfCondition(use_robot_state_publisher),
+            condition=IfCondition(use_description_publisher),
         ),
         Node(
             package='rviz2',

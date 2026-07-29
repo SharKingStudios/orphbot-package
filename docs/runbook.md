@@ -228,7 +228,7 @@ ros2 launch orphbot bringup.launch.py max_pwm:=0.35
 Expected ready logs:
 
 ```text
-robot_state_publisher: Robot initialized
+robot_description_publisher: Publishing STL robot description for RViz
 motor_driver: Motor driver ready, max_pwm=0.35
 mpu6050_node: MPU6050 publishing from bus 1, address 0x68
 odom_publisher: Command-based odometry publisher ready

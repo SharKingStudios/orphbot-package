@@ -29,9 +29,10 @@ def generate_launch_description():
             ],
         ),
         Node(
-            package='robot_state_publisher',
-            executable='robot_state_publisher',
-            name='robot_state_publisher',
+            package='orphbot',
+            executable='robot_description_publisher',
+            name='robot_description_publisher',
+            output='screen',
             parameters=[{'robot_description': robot_description}],
         ),
         Node(

@@ -10,7 +10,7 @@ As of July 29, 2026:
 - Direct `WHO_AM_I` register read returns `0x68`.
 - `mpu6050_node` publishes real `/imu/data_raw` data.
 - Robot-side `colcon build --symlink-install` succeeds.
-- Full robot bringup starts `robot_state_publisher`, `motor_driver`, `mpu6050_node`, and `odom_publisher` successfully.
+- Full robot bringup starts `robot_description_publisher`, `motor_driver`, `mpu6050_node`, and `odom_publisher` successfully.
 - Low-speed forward `/cmd_vel` commands and explicit stop commands were published successfully from both robot shell and WSL. Physical wheel direction still needs operator confirmation.
 
 See `docs/runbook.md` for the concise current procedure from fresh install to teleop/RViz.
@@ -63,7 +63,7 @@ geometry_msgs
 sensor_msgs
 nav_msgs
 tf2_ros
-robot_state_publisher
+robot_description_publisher
 xacro
 ```
 
@@ -195,7 +195,7 @@ README.md
 
 Notes:
 
-- No joint state publisher was added. The wheel links use fixed joints in URDF so `robot_state_publisher` does not need `/joint_states`.
+- No joint state publisher was added. The wheel links use fixed joints in URDF so `robot_description_publisher` does not need `/joint_states`.
 - Odometry is command-based dead reckoning from `/cmd_vel`. It publishes `/odom`, `/path`, and TF from `odom` to `base_link`.
 - The IMU node is part of bringup by default and reports clear errors if I2C or the MPU6050 is unavailable.
 - The motor driver uses Raspberry Pi GPIO directly and is intended to run on the robot.
@@ -509,7 +509,7 @@ ros2 launch orphbot bringup.launch.py max_pwm:=0.35
 All bringup nodes reached ready state:
 
 ```text
-robot_state_publisher: Robot initialized
+robot_description_publisher: Publishing STL robot description for RViz
 motor_driver: Motor driver ready, max_pwm=0.35
 mpu6050_node: MPU6050 publishing from bus 1, address 0x68
 odom_publisher: Command-based odometry publisher ready
@@ -524,7 +524,7 @@ ros2 topic pub /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.0}, angular: {z:
 
 The publisher sent 20 forward messages and one stop message. Awaiting operator observation for wheel direction. If a side spins backward during the forward command, flip that side with `invert_left` or `invert_right` in `orphbot/config/orphbot.yaml`, rebuild, and retest.
 
-Several `robot_state_publisher` processes were orphaned by earlier interrupted automated tests and were stopped by exact PID. A clean `ps` check afterward showed no leftover bringup processes.
+Several `robot_description_publisher` processes were orphaned by earlier interrupted automated tests and were stopped by exact PID. A clean `ps` check afterward showed no leftover bringup processes.
 
 
 ## WSL Teleop Networking Diagnosis
@@ -701,7 +701,7 @@ Launch log confirmed:
 
 ```text
 map_to_odom_publisher: from 'map' to 'odom'
-robot_state_publisher: Robot initialized
+robot_description_publisher: Publishing STL robot description for RViz
 motor_driver: Motor driver ready, max_pwm=0.35
 mpu6050_node: MPU6050 publishing from bus 1, address 0x68
 odom_publisher: Command-based odometry publisher ready
@@ -753,7 +753,7 @@ Commit deployed to the robot:
 99748a1 Improve teleop odom and RViz workflow
 ```
 
-Robot was fast-forwarded, rebuilt with `colcon build --symlink-install`, and bringup restarted. Launch log confirmed `map_to_odom_publisher`, `robot_state_publisher`, `odom_publisher`, `mpu6050_node`, and `motor_driver` all started.
+Robot was fast-forwarded, rebuilt with `colcon build --symlink-install`, and bringup restarted. Launch log confirmed `map_to_odom_publisher`, `robot_description_publisher`, `odom_publisher`, `mpu6050_node`, and `motor_driver` all started.
 
 WSL still discovered `/cmd_vel`, `/imu/data_raw`, `/odom`, `/path`, `/robot_description`, `/tf`, and `/tf_static`; `tf2_echo map odom` resolved after DDS discovery.
 
@@ -778,3 +778,10 @@ Changes made:
 - Restored the RViz grid and added separate `Origin` axes at `map` plus `Robot Axes` at `base_link` so the robot axes can be shown/hidden independently.
 - Replaced terminal teleop with Tk GUI teleop because terminal stdin receives text/key-repeat characters, not real key-up events. The GUI uses `KeyPress`/`KeyRelease` events with a small release debounce for WSL/X key-repeat behavior.
 - Added `python3-tk` as a laptop dependency for the teleop window.
+
+
+## Robot Description Publisher Follow-Up
+
+`robot_state_publisher` was removed from bringup because the STL-only URDF has no joints and does not need fixed-link TF publication. A small `robot_description_publisher` node now publishes `/robot_description` with transient-local QoS for RViz. The TF tree is only `map -> odom -> base_link`, where `map -> odom` comes from the static transform publisher and `odom -> base_link` comes from `odom_publisher`.
+
+This also removes the unnecessary `/joint_states` subscription/topic created by `robot_state_publisher`.
