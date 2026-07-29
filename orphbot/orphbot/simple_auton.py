@@ -70,9 +70,15 @@ def main(args=None):
         node.publish(0.0, 0.0)
     finally:
         node.publish(0.0, 0.0)
-        node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
+        try:
+            node.destroy_node()
+        except KeyboardInterrupt:
+            pass
+        try:
+            if rclpy.ok():
+                rclpy.shutdown()
+        except Exception:
+            pass
 
 
 if __name__ == '__main__':
