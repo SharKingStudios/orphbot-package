@@ -11,7 +11,7 @@ As of July 29, 2026:
 - `mpu6050_node` publishes real `/imu/data_raw` data.
 - Robot-side `colcon build --symlink-install` succeeds.
 - Full robot bringup starts `robot_state_publisher`, `motor_driver`, `mpu6050_node`, and `odom_publisher` successfully.
-- A low-speed forward `/cmd_vel` command and explicit stop command were published successfully. Physical wheel direction still needs operator confirmation.
+- Low-speed forward `/cmd_vel` commands and explicit stop commands were published successfully from both robot shell and WSL. Physical wheel direction still needs operator confirmation.
 
 See `docs/runbook.md` for the concise current procedure from fresh install to teleop/RViz.
 
@@ -606,3 +606,47 @@ With this config sourced through `orphbot/config/wsl_env.sh`, WSL discovered the
 ```
 
 Later, while old robot bringup was still running and SSH was wedged at banner exchange, WSL again only saw local topics. Reboot the robot and retest from a clean bringup if that happens.
+
+
+## Final WSL Teleop Networking Verification
+
+After rebooting the robot, pulling commit `346329b`, rebuilding on the robot, and starting bringup with `robot_env.sh`, WSL discovery worked using `wsl_env.sh`.
+
+Robot bringup env:
+
+```text
+ROS_DOMAIN_ID=17
+ROS_AUTOMATIC_DISCOVERY_RANGE=SUBNET
+RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+```
+
+WSL env:
+
+```text
+ROS_DOMAIN_ID=17
+ROS_AUTOMATIC_DISCOVERY_RANGE=SUBNET
+CYCLONEDDS_URI=file:///home/logan/orphbot_ws/src/orphbot-package/orphbot/config/cyclonedds_wsl.xml
+RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+```
+
+WSL discovered the full graph:
+
+```text
+/cmd_vel [geometry_msgs/msg/Twist]
+/imu/data_raw [sensor_msgs/msg/Imu]
+/joint_states [sensor_msgs/msg/JointState]
+/odom [nav_msgs/msg/Odometry]
+/path [nav_msgs/msg/Path]
+/robot_description [std_msgs/msg/String]
+/tf [tf2_msgs/msg/TFMessage]
+/tf_static [tf2_msgs/msg/TFMessage]
+```
+
+WSL then published a low-speed forward command and stop:
+
+```bash
+ros2 topic pub /cmd_vel geometry_msgs/msg/Twist '{linear: {x: 0.12}, angular: {z: 0.0}}' -r 10 -t 20 -w 1 --max-wait-time-secs 8 --keep-alive 0.5
+ros2 topic pub /cmd_vel geometry_msgs/msg/Twist '{linear: {x: 0.0}, angular: {z: 0.0}}' --once -w 1 --max-wait-time-secs 8 --keep-alive 0.5
+```
+
+The WSL publisher matched a subscriber and printed all 20 forward messages plus the stop message. Robot bringup was stopped afterward and no bringup processes were left running. Awaiting operator observation for wheel direction.

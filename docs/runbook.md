@@ -496,6 +496,45 @@ This launches bringup and publishes the conservative timed autonomous routine.
 
 ## Current Known Gaps
 
-- Motor direction observation still needs operator confirmation. The low-speed forward command was published and stopped, but the physical wheel direction was not reported back yet.
-- RViz GUI was not opened from this environment. The ROS topics RViz needs are produced by bringup, and the RViz config points at those topics.
+- Motor direction observation still needs operator confirmation. A low-speed forward command was published from WSL and stopped, but the physical wheel direction was not reported back yet.
+- RViz GUI was not opened from this environment. The ROS topics RViz needs are produced by bringup, WSL now discovers them, and the RViz config points at those topics.
 - The odometry is command-based dead reckoning. It is the robot's available odometry source, but it will drift because there are no wheel encoders.
+
+
+## Verified WSL Networking Result
+
+After the Windows Hyper-V firewall rule and `cyclonedds_wsl.xml` interface pin were in place, WSL discovered the robot graph from a fresh robot bringup.
+
+WSL command pattern that worked:
+
+```bash
+cd ~/orphbot_ws
+source /opt/ros/jazzy/setup.bash
+source install/setup.bash
+source ~/orphbot_ws/src/orphbot-package/orphbot/config/wsl_env.sh
+ros2 topic list --no-daemon --spin-time 10 -t | sort
+```
+
+Observed from WSL:
+
+```text
+/cmd_vel [geometry_msgs/msg/Twist]
+/imu/data_raw [sensor_msgs/msg/Imu]
+/joint_states [sensor_msgs/msg/JointState]
+/odom [nav_msgs/msg/Odometry]
+/parameter_events [rcl_interfaces/msg/ParameterEvent]
+/path [nav_msgs/msg/Path]
+/robot_description [std_msgs/msg/String]
+/rosout [rcl_interfaces/msg/Log]
+/tf [tf2_msgs/msg/TFMessage]
+/tf_static [tf2_msgs/msg/TFMessage]
+```
+
+A WSL-published low-speed forward command matched a robot subscriber and was followed by a stop:
+
+```bash
+ros2 topic pub /cmd_vel geometry_msgs/msg/Twist '{linear: {x: 0.12}, angular: {z: 0.0}}' -r 10 -t 20 -w 1 --max-wait-time-secs 8 --keep-alive 0.5
+ros2 topic pub /cmd_vel geometry_msgs/msg/Twist '{linear: {x: 0.0}, angular: {z: 0.0}}' --once -w 1 --max-wait-time-secs 8 --keep-alive 0.5
+```
+
+The command printed all 20 forward messages and the final stop message from WSL. Physical wheel observation is still needed to confirm motor direction.
