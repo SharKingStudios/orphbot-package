@@ -49,7 +49,7 @@ MPU6050:
 | SDA | GPIO2/SDA, physical pin 3 |
 | SCL | GPIO3/SCL, physical pin 5 |
 | AD0 | GND for `0x68`, 3V3 for `0x69` |
-| INT | optional GPIO4, physical pin 7 |
+| INT | not used by the current node; GPIO4/physical pin 7 if connected |
 
 ## Flash And SSH
 
@@ -192,7 +192,7 @@ source ~/orphbot_ws/src/orphbot-package/orphbot/config/robot_env.sh
 ros2 launch orphbot bringup.launch.py max_pwm:=0.35
 ```
 
-The bringup starts the motor driver, robot description, odometry, and MPU6050 node. If the IMU is not detected, fix I2C before treating the robot as complete.
+The bringup starts the motor driver, robot description, odometry, MPU6050 node, and a static `map` to `odom` transform for RViz. If the IMU is not detected, fix I2C before treating the robot as complete.
 
 For a first controlled motor check from another terminal on the robot, keep the robot on the stand and publish a short slow command:
 
@@ -200,9 +200,22 @@ For a first controlled motor check from another terminal on the robot, keep the 
 source /opt/ros/jazzy/setup.bash
 source ~/orphbot_ws/install/setup.bash
 source ~/orphbot_ws/src/orphbot-package/orphbot/config/robot_env.sh
-ros2 topic pub /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.12}, angular: {z: 0.0}}" -r 10 -t 20 -w 0 --keep-alive 0.1
+ros2 topic pub /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.16}, angular: {z: 0.0}}" -r 10 -t 20 -w 0 --keep-alive 0.1
 ros2 topic pub /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.0}, angular: {z: 0.0}}" --once -w 0 --keep-alive 0.1
 ```
+
+## Motor Direction Test
+
+Yellow TT motors may need more than very low PWM to visibly move. With the robot on a stand and bringup stopped, test one motor at a time:
+
+```bash
+source /opt/ros/jazzy/setup.bash
+source ~/orphbot_ws/install/setup.bash
+source ~/orphbot_ws/src/orphbot-package/orphbot/config/robot_env.sh
+ros2 run orphbot motor_test left_front --pwm 0.55 --seconds 1.5
+```
+
+Repeat with `left_rear`, `right_front`, and `right_rear`. If one motor only spins one direction, check that motor's two DRV8833 input wires, GPIO pins, solder joints, and driver channel.
 
 ## Drive From The Laptop
 

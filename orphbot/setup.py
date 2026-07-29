@@ -30,6 +30,7 @@ setup(
         'console_scripts': [
             'keyboard_teleop = orphbot.keyboard_teleop:main',
             'motor_driver = orphbot.motor_driver:main',
+            'motor_test = orphbot.motor_test:main',
             'mpu6050_node = orphbot.mpu6050_node:main',
             'odom_publisher = orphbot.odom_publisher:main',
             'simple_auton = orphbot.simple_auton:main',

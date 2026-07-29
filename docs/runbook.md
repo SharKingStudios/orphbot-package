@@ -253,6 +253,8 @@ Important topics:
 /tf_static
 ```
 
+Bringup also publishes a static identity transform from `map` to `odom`. This is for RViz convenience only; it is not a SLAM-generated map. With this transform, RViz can use either `map` or `odom` as the fixed frame.
+
 ## First Motor Test On Robot
 
 Only run this with the wheels off the ground.
@@ -367,11 +369,47 @@ Expected robot topics include:
 /tf_static
 ```
 
+Bringup also publishes a static identity transform from `map` to `odom`. This is for RViz convenience only; it is not a SLAM-generated map. With this transform, RViz can use either `map` or `odom` as the fixed frame.
+
 References used for this internal note:
 
 - Microsoft WSL networking docs: mirrored mode improves LAN compatibility and supports multicast.
 - Microsoft WSL networking docs: Hyper-V firewall settings may need an inbound allow rule for WSL mirrored networking.
 - ROS 2 discovery docs: `ROS_AUTOMATIC_DISCOVERY_RANGE=SUBNET` enables discovery on the local subnet for DDS middleware.
+
+
+## One-Direction Motor Diagnosis
+
+A yellow TT DC motor should spin both directions if the polarity across its two leads reverses. If exactly one motor only spins one direction while the other three work, the most likely causes are on that motor driver's input/channel path, not the motor itself:
+
+- One of the two DRV8833 input wires for that motor is loose, swapped, or on the wrong Pi pin.
+- One GPIO pin in the configured pair is not reaching the driver input.
+- One DRV8833 channel input or output is damaged.
+- A solder joint/header pin on that channel is bad.
+- Less likely: one motor lead connection is intermittent and only makes contact under one vibration/load direction.
+
+Use the per-motor diagnostic command on the robot with the wheels off the ground and bringup stopped. Yellow TT motors may need more than `0.35` PWM to visibly move, so start around `0.55` for short tests:
+
+```bash
+source /opt/ros/jazzy/setup.bash
+source ~/orphbot_ws/install/setup.bash
+source ~/orphbot_ws/src/orphbot-package/orphbot/config/robot_env.sh
+ros2 run orphbot motor_test left_front --pwm 0.55 --seconds 1.5
+ros2 run orphbot motor_test left_rear --pwm 0.55 --seconds 1.5
+ros2 run orphbot motor_test right_front --pwm 0.55 --seconds 1.5
+ros2 run orphbot motor_test right_rear --pwm 0.55 --seconds 1.5
+```
+
+Each command runs one motor forward, stops, then runs it reverse. If one phase works and the other does not, swap that motor's two DRV8833 input wires at the GPIO side or move the motor to a known-good channel to distinguish wiring from a bad driver channel. If the failure follows the motor wiring, fix that input lead/solder joint. If the failure stays with the DRV8833 channel, replace or rewire that channel.
+
+Configured motor GPIO pairs:
+
+```text
+left_front: GPIO5/GPIO6
+left_rear: GPIO13/GPIO19
+right_front: GPIO20/GPIO21
+right_rear: GPIO23/GPIO24
+```
 
 ## Laptop Install And Build
 
@@ -471,15 +509,16 @@ ros2 launch orphbot rviz.launch.py
 
 RViz should show:
 
-- Fixed frame `odom`.
+- Fixed frame `map`.
 - Robot model from `/robot_description`.
 - Static transforms for fixed wheel links and `imu_link`.
+- Static TF from `map` to `odom`.
 - Dynamic TF from `odom` to `base_link` from `odom_publisher`.
 - `/odom` arrows.
 - `/path` trail.
 - `/imu/data_raw` display.
 
-The wheels are fixed in the URDF because there are no encoders and no joint state publisher. The body, wheels, IMU link, odometry, path, and TF should visualize. Wheel spin animation is intentionally not implemented.
+The `map` frame is an identity visualization frame equal to `odom`; there is no SLAM map. The wheels are fixed in the URDF because there are no encoders and no joint state publisher. The body, wheels, IMU link, odometry, path, and TF should visualize. Wheel spin animation is intentionally not implemented.
 
 ## Simple Autonomy
 

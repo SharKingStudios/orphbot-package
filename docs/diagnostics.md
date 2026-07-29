@@ -650,3 +650,19 @@ ros2 topic pub /cmd_vel geometry_msgs/msg/Twist '{linear: {x: 0.0}, angular: {z:
 ```
 
 The WSL publisher matched a subscriber and printed all 20 forward messages plus the stop message. Robot bringup was stopped afterward and no bringup processes were left running. Awaiting operator observation for wheel direction.
+
+
+## RViz Map Frame And One-Direction Motor Follow-Up
+
+User reported RViz sees nothing because `map` does not exist. Fix applied locally:
+
+- `bringup.launch.py` now starts `tf2_ros/static_transform_publisher` for an identity `map -> odom` transform.
+- `orphbot.rviz` now uses fixed frame `map`.
+- This `map` is only a visualization/world frame equal to `odom`; it is not a SLAM map.
+
+User also reported one motor only spins one direction and yellow TT motors need higher velocity. Diagnosis:
+
+- A TT DC motor should reverse when polarity reverses.
+- One-direction behavior points to one DRV8833 input leg, one GPIO wire, one solder joint, or one driver channel not working.
+- Added `ros2 run orphbot motor_test <motor> --pwm 0.55 --seconds 1.5` to test one motor forward and reverse with bringup stopped so the diagnostic owns the GPIO pins.
+- Use the test to determine whether the failure follows the motor/wiring or stays with the DRV8833 channel.

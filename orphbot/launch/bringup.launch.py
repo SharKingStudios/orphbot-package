@@ -16,6 +16,16 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument('max_pwm', default_value='0.35'),
         Node(
+            package='tf2_ros',
+            executable='static_transform_publisher',
+            name='map_to_odom_publisher',
+            arguments=[
+                '--x', '0', '--y', '0', '--z', '0',
+                '--roll', '0', '--pitch', '0', '--yaw', '0',
+                '--frame-id', 'map', '--child-frame-id', 'odom',
+            ],
+        ),
+        Node(
             package='robot_state_publisher',
             executable='robot_state_publisher',
             name='robot_state_publisher',
