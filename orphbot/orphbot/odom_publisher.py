@@ -21,6 +21,9 @@ class OdomPublisher(Node):
         self.declare_parameter('linear_scale', 1.0)
         self.declare_parameter('angular_scale', 1.0)
         self.declare_parameter('path_max_poses', 500)
+        self.declare_parameter('cmd_timeout', 0.55)
+        self.declare_parameter('path_min_distance', 0.01)
+        self.declare_parameter('path_min_yaw', 0.05)
 
         self.odom_frame = self.get_parameter('odom_frame').value
         self.base_frame = self.get_parameter('base_frame').value
@@ -28,6 +31,9 @@ class OdomPublisher(Node):
         self.linear_scale = float(self.get_parameter('linear_scale').value)
         self.angular_scale = float(self.get_parameter('angular_scale').value)
         self.path_max_poses = int(self.get_parameter('path_max_poses').value)
+        self.cmd_timeout = max(0.05, float(self.get_parameter('cmd_timeout').value))
+        self.path_min_distance = max(0.0, float(self.get_parameter('path_min_distance').value))
+        self.path_min_yaw = max(0.0, float(self.get_parameter('path_min_yaw').value))
 
         self.x = 0.0
         self.y = 0.0
@@ -35,6 +41,10 @@ class OdomPublisher(Node):
         self.linear = 0.0
         self.angular = 0.0
         self.last_time = self.get_clock().now()
+        self.last_cmd_time = None
+        self.last_path_x = None
+        self.last_path_y = None
+        self.last_path_yaw = None
         self.path = Path()
         self.path.header.frame_id = self.odom_frame
 
@@ -48,6 +58,7 @@ class OdomPublisher(Node):
     def cmd_vel_callback(self, msg):
         self.linear = msg.linear.x * self.linear_scale
         self.angular = msg.angular.z * self.angular_scale
+        self.last_cmd_time = self.get_clock().now()
 
     def tick(self):
         now = self.get_clock().now()
@@ -55,6 +66,13 @@ class OdomPublisher(Node):
         self.last_time = now
         if dt < 0.0 or dt > 1.0:
             dt = 0.0
+
+        if self.last_cmd_time is not None:
+            cmd_age = (now - self.last_cmd_time).nanoseconds / 1e9
+            if cmd_age > self.cmd_timeout:
+                self.linear = 0.0
+                self.angular = 0.0
+                self.last_cmd_time = None
 
         self.x += self.linear * math.cos(self.yaw) * dt
         self.y += self.linear * math.sin(self.yaw) * dt
@@ -96,14 +114,37 @@ class OdomPublisher(Node):
         odom.twist.covariance[35] = 0.35
         self.odom_pub.publish(odom)
 
+        self.maybe_append_path_pose(odom, stamp)
+        self.path_pub.publish(self.path)
+
+    def maybe_append_path_pose(self, odom, stamp):
+        should_append = self.last_path_x is None
+        if not should_append:
+            dx = self.x - self.last_path_x
+            dy = self.y - self.last_path_y
+            dyaw = math.atan2(
+                math.sin(self.yaw - self.last_path_yaw),
+                math.cos(self.yaw - self.last_path_yaw),
+            )
+            should_append = (
+                math.hypot(dx, dy) >= self.path_min_distance
+                or abs(dyaw) >= self.path_min_yaw
+            )
+
+        if not should_append:
+            self.path.header.stamp = stamp
+            return
+
         pose = PoseStamped()
         pose.header = odom.header
         pose.pose = odom.pose.pose
         self.path.header.stamp = stamp
         self.path.poses.append(pose)
+        self.last_path_x = self.x
+        self.last_path_y = self.y
+        self.last_path_yaw = self.yaw
         if len(self.path.poses) > self.path_max_poses:
             self.path.poses = self.path.poses[-self.path_max_poses:]
-        self.path_pub.publish(self.path)
 
 
 def main(args=None):

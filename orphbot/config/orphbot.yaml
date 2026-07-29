@@ -21,6 +21,9 @@ odom_publisher:
     linear_scale: 1.0
     angular_scale: 1.0
     path_max_poses: 500
+    cmd_timeout: 0.55
+    path_min_distance: 0.01
+    path_min_yaw: 0.05
 
 mpu6050_node:
   ros__parameters:

@@ -731,3 +731,15 @@ ros2 run orphbot motor_test right_rear --pwm 0.55 --seconds 1.5 --pause 0.8
 ```
 
 Software-side result: all four commands completed both phases and stopped without GPIO or ROS errors. Hardware-side result still needs the operator observation: record which named motor failed, and whether it failed during phase 1, phase 2, or both.
+
+
+## Teleop, Odom, RViz, CAD, And License Follow-Up
+
+Changes made after live robot testing:
+
+- Laptop `keyboard_teleop` is now hold-to-drive. It republishes the active command at 10 Hz while W/S/A/D key repeats are arriving, drains buffered terminal input each loop, and sends a three-message stop burst when the key stream times out or the operator presses `X`/Space/`Q`.
+- `odom_publisher` now has its own `cmd_timeout` parameter, default `0.55` seconds. If command input stops, odometry publishes zero twist and stops integrating pose. This mirrors the motor watchdog so RViz path movement does not continue after the robot has stopped.
+- Path publishing is less noisy: the pose list only grows after meaningful translation or yaw change, but `/path` is still published at the odom rate for RViz.
+- RViz was reduced to RobotModel, Origin axes, and Path only.
+- URDF launch now uses `orphbot/meshes/orphbot_body.stl` automatically when present, with STEP CAD sources kept under `orphbot/cad/`. STEP still needs to be exported or converted to STL because RViz/URDF does not directly render STEP.
+- Added a root MIT `LICENSE` file.

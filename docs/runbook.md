@@ -481,14 +481,16 @@ ros2 topic list --no-daemon --spin-time 5
 ros2 run orphbot keyboard_teleop
 ```
 
+Teleop is hold-to-drive. The terminal does not provide a real key-release event through WSL, so the node treats repeated movement keys as the held state, drains buffered key repeats each loop, and sends stop commands when no movement key arrives for the timeout window. This prevents Windows terminal repeat overflow from leaving stale movement commands in the queue.
+
 Keys:
 
 ```text
-W forward
-S backward
-A turn left
-D turn right
-X stop
+Hold W forward
+Hold S backward
+Hold A turn left
+Hold D turn right
+X or Space stop
 + faster
 - slower
 Q quit
@@ -507,18 +509,33 @@ source ~/orphbot_ws/src/orphbot-package/orphbot/config/wsl_env.sh
 ros2 launch orphbot rviz.launch.py
 ```
 
-RViz should show:
+RViz should show only:
 
 - Fixed frame `map`.
 - Robot model from `/robot_description`.
-- Static transforms for fixed wheel links and `imu_link`.
-- Static TF from `map` to `odom`.
-- Dynamic TF from `odom` to `base_link` from `odom_publisher`.
-- `/odom` arrows.
+- Origin axes at `map`.
 - `/path` trail.
-- `/imu/data_raw` display.
 
-The `map` frame is an identity visualization frame equal to `odom`; there is no SLAM map. The wheels are fixed in the URDF because there are no encoders and no joint state publisher. The body, wheels, IMU link, odometry, path, and TF should visualize. Wheel spin animation is intentionally not implemented.
+The `map` frame is an identity visualization frame equal to `odom`; there is no SLAM map. The RViz config intentionally hides TF, odom arrows, grid, and IMU displays so the guide screenshots stay focused. The wheels are fixed in the URDF because there are no encoders and no joint state publisher. Wheel spin animation is intentionally not implemented.
+
+## CAD And RViz Mesh Slot
+
+Use this convention for the body model:
+
+```text
+orphbot/cad/orphbot_body.step       source CAD, kept for editing
+orphbot/meshes/orphbot_body.stl     RViz-renderable mesh
+```
+
+RViz does not directly render STEP files from URDF. Export or convert the STEP body to STL, then rebuild:
+
+```bash
+cd ~/orphbot_ws
+colcon build --symlink-install
+source install/setup.bash
+```
+
+The launch files check for `package://orphbot/meshes/orphbot_body.stl`. If it exists, the robot body visual uses that mesh. If it does not exist, the URDF falls back to the simple box body so bringup and RViz still work.
 
 ## Simple Autonomy
 

@@ -4,35 +4,22 @@ Panels:
 Visualization Manager:
   Class: ""
   Displays:
-    - Class: rviz_default_plugins/Grid
-      Enabled: true
-      Name: Grid
-      Plane: XY
-      Reference Frame: map
     - Class: rviz_default_plugins/RobotModel
       Description Source: Topic
       Description Topic:
         Value: /robot_description
       Enabled: true
       Name: RobotModel
-    - Class: rviz_default_plugins/TF
+    - Class: rviz_default_plugins/Axes
       Enabled: true
-      Name: TF
-    - Class: rviz_default_plugins/Odometry
-      Enabled: true
-      Name: Odom
-      Topic:
-        Value: /odom
+      Length: 0.22
+      Name: Origin
+      Radius: 0.01
     - Class: rviz_default_plugins/Path
       Enabled: true
       Name: Path
       Topic:
         Value: /path
-    - Class: rviz_default_plugins/Imu
-      Enabled: true
-      Name: IMU
-      Topic:
-        Value: /imu/data_raw
   Enabled: true
   Global Options:
     Background Color: 248; 248; 248
