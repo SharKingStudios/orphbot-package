@@ -17,14 +17,14 @@ class OdomPublisher(Node):
         super().__init__('odom_publisher')
         self.declare_parameter('odom_frame', 'odom')
         self.declare_parameter('base_frame', 'base_link')
-        self.declare_parameter('publish_rate', 30.0)
+        self.declare_parameter('publish_rate', 10.0)
         self.declare_parameter('linear_scale', 1.0)
         self.declare_parameter('angular_scale', 1.0)
         self.declare_parameter('path_max_poses', 500)
 
         self.odom_frame = self.get_parameter('odom_frame').value
         self.base_frame = self.get_parameter('base_frame').value
-        rate = float(self.get_parameter('publish_rate').value)
+        rate = max(1.0, float(self.get_parameter('publish_rate').value))
         self.linear_scale = float(self.get_parameter('linear_scale').value)
         self.angular_scale = float(self.get_parameter('angular_scale').value)
         self.path_max_poses = int(self.get_parameter('path_max_poses').value)

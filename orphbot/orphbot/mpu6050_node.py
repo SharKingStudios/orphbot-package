@@ -18,12 +18,12 @@ class MPU6050Node(Node):
         self.declare_parameter('bus', 1)
         self.declare_parameter('address', 0x68)
         self.declare_parameter('frame_id', 'imu_link')
-        self.declare_parameter('publish_rate', 50.0)
+        self.declare_parameter('publish_rate', 20.0)
 
         self.bus_number = int(self.get_parameter('bus').value)
         self.address = int(self.get_parameter('address').value)
         self.frame_id = self.get_parameter('frame_id').value
-        rate = float(self.get_parameter('publish_rate').value)
+        rate = max(1.0, float(self.get_parameter('publish_rate').value))
 
         self.bus = self._open_bus()
         self._initialize_sensor()

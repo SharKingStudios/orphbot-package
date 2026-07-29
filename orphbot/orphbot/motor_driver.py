@@ -94,7 +94,7 @@ class MotorDriver(Node):
         self.last_left = 0.0
         self.last_right = 0.0
         self.create_subscription(Twist, 'cmd_vel', self.cmd_vel_callback, 10)
-        self.create_timer(0.05, self.watchdog)
+        self.create_timer(0.1, self.watchdog)
         self.get_logger().info(f'Motor driver ready, max_pwm={self.max_pwm:.2f}')
 
     def _pin_pair(self, parameter_name):

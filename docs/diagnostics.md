@@ -657,6 +657,7 @@ The WSL publisher matched a subscriber and printed all 20 forward messages plus 
 User reported RViz sees nothing because `map` does not exist. Fix applied locally:
 
 - `bringup.launch.py` now starts `tf2_ros/static_transform_publisher` for an identity `map -> odom` transform.
+- Default odometry and IMU publish rates were reduced to 10 Hz and 20 Hz respectively because the Pi Zero 2 W was CPU-bound at 30 Hz odom and 50 Hz IMU.
 - `orphbot.rviz` now uses fixed frame `map`.
 - This `map` is only a visualization/world frame equal to `odom`; it is not a SLAM map.
 
