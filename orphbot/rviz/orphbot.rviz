@@ -4,6 +4,11 @@ Panels:
 Visualization Manager:
   Class: ""
   Displays:
+    - Class: rviz_default_plugins/Grid
+      Enabled: true
+      Name: Grid
+      Plane: XY
+      Reference Frame: map
     - Class: rviz_default_plugins/RobotModel
       Description Source: Topic
       Description Topic:
@@ -12,9 +17,16 @@ Visualization Manager:
       Name: RobotModel
     - Class: rviz_default_plugins/Axes
       Enabled: true
-      Length: 0.22
+      Length: 0.24
       Name: Origin
       Radius: 0.01
+      Reference Frame: map
+    - Class: rviz_default_plugins/Axes
+      Enabled: true
+      Length: 0.16
+      Name: Robot Axes
+      Radius: 0.008
+      Reference Frame: base_link
     - Class: rviz_default_plugins/Path
       Enabled: true
       Name: Path

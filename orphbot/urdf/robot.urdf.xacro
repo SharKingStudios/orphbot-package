@@ -1,51 +1,19 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="orphbot">
-  <xacro:property name="base_length" value="0.22"/>
-  <xacro:property name="base_width" value="0.16"/>
-  <xacro:property name="base_height" value="0.06"/>
-  <xacro:property name="wheel_radius" value="0.032"/>
-  <xacro:property name="wheel_width" value="0.024"/>
-  <xacro:property name="wheel_x" value="0.075"/>
-  <xacro:property name="wheel_y" value="0.095"/>
-  <xacro:property name="wheel_z" value="-0.025"/>
-  <xacro:arg name="use_base_mesh" default="false"/>
-  <xacro:arg name="base_mesh" default=""/>
-  <xacro:arg name="base_mesh_scale" default="1 1 1"/>
-
-  <material name="body_blue">
-    <color rgba="0.05 0.26 0.55 1.0"/>
-  </material>
-  <material name="wheel_black">
-    <color rgba="0.02 0.02 0.02 1.0"/>
-  </material>
-  <material name="imu_green">
-    <color rgba="0.0 0.45 0.22 1.0"/>
-  </material>
-
-  <link name="base_footprint"/>
-  <joint name="base_footprint_joint" type="fixed">
-    <parent link="base_footprint"/>
-    <child link="base_link"/>
-    <origin xyz="0 0 0" rpy="0 0 0"/>
-  </joint>
+  <xacro:arg name="base_mesh" default="package://orphbot/meshes/orphbot_body.stl"/>
+  <xacro:arg name="base_mesh_scale" default="0.001 0.001 0.001"/>
 
   <link name="base_link">
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <xacro:if value="$(arg use_base_mesh)">
-          <mesh filename="$(arg base_mesh)" scale="$(arg base_mesh_scale)"/>
-        </xacro:if>
-        <xacro:unless value="$(arg use_base_mesh)">
-          <box size="${base_length} ${base_width} ${base_height}"/>
-        </xacro:unless>
+        <mesh filename="$(arg base_mesh)" scale="$(arg base_mesh_scale)"/>
       </geometry>
-      <material name="body_blue"/>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <box size="${base_length} ${base_width} ${base_height}"/>
+        <mesh filename="$(arg base_mesh)" scale="$(arg base_mesh_scale)"/>
       </geometry>
     </collision>
     <inertial>
@@ -54,52 +22,4 @@
       <inertia ixx="0.002" ixy="0.0" ixz="0.0" iyy="0.003" iyz="0.0" izz="0.004"/>
     </inertial>
   </link>
-
-  <xacro:macro name="wheel" params="name x y">
-    <link name="${name}">
-      <visual>
-        <origin xyz="0 0 0" rpy="1.5708 0 0"/>
-        <geometry>
-          <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
-        </geometry>
-        <material name="wheel_black"/>
-      </visual>
-      <collision>
-        <origin xyz="0 0 0" rpy="1.5708 0 0"/>
-        <geometry>
-          <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
-        </geometry>
-      </collision>
-      <inertial>
-        <origin xyz="0 0 0" rpy="0 0 0"/>
-        <mass value="0.06"/>
-        <inertia ixx="0.00003" ixy="0.0" ixz="0.0" iyy="0.00003" iyz="0.0" izz="0.00003"/>
-      </inertial>
-    </link>
-    <joint name="${name}_joint" type="fixed">
-      <parent link="base_link"/>
-      <child link="${name}"/>
-      <origin xyz="${x} ${y} ${wheel_z}" rpy="0 0 0"/>
-    </joint>
-  </xacro:macro>
-
-  <xacro:wheel name="left_front_wheel" x="${wheel_x}" y="${wheel_y}"/>
-  <xacro:wheel name="left_rear_wheel" x="-${wheel_x}" y="${wheel_y}"/>
-  <xacro:wheel name="right_front_wheel" x="${wheel_x}" y="-${wheel_y}"/>
-  <xacro:wheel name="right_rear_wheel" x="-${wheel_x}" y="-${wheel_y}"/>
-
-  <link name="imu_link">
-    <visual>
-      <origin xyz="0 0 0" rpy="0 0 0"/>
-      <geometry>
-        <box size="0.028 0.018 0.004"/>
-      </geometry>
-      <material name="imu_green"/>
-    </visual>
-  </link>
-  <joint name="imu_joint" type="fixed">
-    <parent link="base_link"/>
-    <child link="imu_link"/>
-    <origin xyz="0.03 0 0.035" rpy="0 0 0"/>
-  </joint>
 </robot>

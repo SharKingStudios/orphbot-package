@@ -228,7 +228,7 @@ source ~/orphbot_ws/src/orphbot-package/orphbot/config/wsl_env.sh
 ros2 run orphbot keyboard_teleop
 ```
 
-Keys: hold `W` forward, hold `S` backward, hold `A` left, hold `D` right, `X` or Space stop, `+` faster, `-` slower, `Q` quit. The laptop teleop republishes while a movement key is repeating and sends a short burst of stop commands when the key stream stops, which keeps odometry and the real motor watchdog aligned even through WSL/Windows terminal repeat behavior.
+Keys: hold `W` forward, hold `S` backward, hold `A` left, hold `D` right, Space or `X` stop, `+` faster, `-` slower, `Q` quit. The laptop teleop opens a small GUI window so it can use real key press and key release events instead of terminal text input repeat behavior.
 
 ## Run RViz From The Laptop
 
@@ -239,11 +239,11 @@ source ~/orphbot_ws/src/orphbot-package/orphbot/config/wsl_env.sh
 ros2 launch orphbot rviz.launch.py
 ```
 
-The default RViz view is intentionally sparse: robot model, origin axes at `map`, and the `/path` trail. The `map` frame is an identity visualization frame equal to `odom`; there is no SLAM map.
+The default RViz view shows the grid, STL robot model, origin axes at `map`, robot axes at `base_link`, and the `/path` trail. The `map` frame is an identity visualization frame equal to `odom`; there is no SLAM map.
 
 ## Robot Model Mesh
 
-The URDF uses a simple box body unless a renderable body mesh exists at `orphbot/meshes/orphbot_body.stl`. STEP files belong in `orphbot/cad/` as source CAD. RViz does not directly render STEP through URDF, so export or convert the STEP body to STL, rebuild with `colcon build --symlink-install`, and the launch files will pick up the STL automatically.
+The URDF requires `orphbot/meshes/orphbot_body.stl` for the robot body. STEP files belong in `orphbot/cad/` as source CAD, but RViz does not directly render STEP through URDF. Export or convert the STEP body to STL, rebuild with `colcon build --symlink-install`, and RViz will use that STL.
 
 ## Run Simple Auton
 

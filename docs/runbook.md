@@ -481,7 +481,7 @@ ros2 topic list --no-daemon --spin-time 5
 ros2 run orphbot keyboard_teleop
 ```
 
-Teleop is hold-to-drive. The terminal does not provide a real key-release event through WSL, so the node treats repeated movement keys as the held state, drains buffered key repeats each loop, and sends stop commands when no movement key arrives for the timeout window. This prevents Windows terminal repeat overflow from leaving stale movement commands in the queue.
+Teleop is hold-to-drive through a small Tk GUI window. Terminal stdin does not provide real key-release events through WSL, so the teleop node intentionally uses GUI `KeyPress` and `KeyRelease` events instead of normal text input. Focus the teleop window before driving.
 
 Keys:
 
@@ -490,7 +490,7 @@ Hold W forward
 Hold S backward
 Hold A turn left
 Hold D turn right
-X or Space stop
+Space or X stop
 + faster
 - slower
 Q quit
@@ -509,14 +509,16 @@ source ~/orphbot_ws/src/orphbot-package/orphbot/config/wsl_env.sh
 ros2 launch orphbot rviz.launch.py
 ```
 
-RViz should show only:
+RViz should show:
 
 - Fixed frame `map`.
-- Robot model from `/robot_description`.
+- Grid.
+- STL robot model from `/robot_description`.
 - Origin axes at `map`.
+- Robot axes at `base_link`, which can be shown or hidden from the Displays panel.
 - `/path` trail.
 
-The `map` frame is an identity visualization frame equal to `odom`; there is no SLAM map. The RViz config intentionally hides TF, odom arrows, grid, and IMU displays so the guide screenshots stay focused. The wheels are fixed in the URDF because there are no encoders and no joint state publisher. Wheel spin animation is intentionally not implemented.
+The `map` frame is an identity visualization frame equal to `odom`; there is no SLAM map. The RViz config intentionally hides TF, odom arrows, and IMU displays so the guide screenshots stay focused. The URDF intentionally publishes one visual link, `base_link`, backed by the STL mesh. It does not include separate wheel links, an IMU link, `base_footprint`, or a joint state publisher.
 
 ## CAD And RViz Mesh Slot
 
@@ -535,7 +537,7 @@ colcon build --symlink-install
 source install/setup.bash
 ```
 
-The launch files check for `package://orphbot/meshes/orphbot_body.stl`. If it exists, the robot body visual uses that mesh. If it does not exist, the URDF falls back to the simple box body so bringup and RViz still work.
+The launch files use `package://orphbot/meshes/orphbot_body.stl`. That STL is required; the package no longer contains a box fallback because the guide should show the actual robot model.
 
 ## Simple Autonomy
 
