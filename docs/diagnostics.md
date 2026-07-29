@@ -743,3 +743,25 @@ Changes made after live robot testing:
 - RViz was reduced to RobotModel, Origin axes, and Path only.
 - URDF launch now uses `orphbot/meshes/orphbot_body.stl` automatically when present, with STEP CAD sources kept under `orphbot/cad/`. STEP still needs to be exported or converted to STL because RViz/URDF does not directly render STEP.
 - Added a root MIT `LICENSE` file.
+
+
+## Verification After Teleop/Odom/RViz Update
+
+Commit deployed to the robot:
+
+```text
+99748a1 Improve teleop odom and RViz workflow
+```
+
+Robot was fast-forwarded, rebuilt with `colcon build --symlink-install`, and bringup restarted. Launch log confirmed `map_to_odom_publisher`, `robot_state_publisher`, `odom_publisher`, `mpu6050_node`, and `motor_driver` all started.
+
+WSL still discovered `/cmd_vel`, `/imu/data_raw`, `/odom`, `/path`, `/robot_description`, `/tf`, and `/tf_static`; `tf2_echo map odom` resolved after DDS discovery.
+
+Odom timeout was verified by publishing three real `/cmd_vel` forward messages at `linear.x=0.16`, then not publishing an immediate stop. A robot-side `/odom` sample after the timeout reported:
+
+```text
+linear.x=0.0000
+angular.z=0.0000
+```
+
+An explicit zero `/cmd_vel` was published afterward as cleanup. This verifies odometry no longer keeps integrating forever after the robot motor watchdog has stopped the drivetrain.
