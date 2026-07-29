@@ -354,7 +354,8 @@ For guide runs, set:
 ```bash
 export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
 export ROS_DOMAIN_ID=17
-export ROS_LOCALHOST_ONLY=0
+export ROS_AUTOMATIC_DISCOVERY_RANGE=SUBNET
+unset ROS_LOCALHOST_ONLY
 ```
 
 Robot I2C state:
@@ -500,7 +501,8 @@ source /opt/ros/jazzy/setup.bash
 source ~/orphbot_ws/install/setup.bash
 export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
 export ROS_DOMAIN_ID=17
-export ROS_LOCALHOST_ONLY=0
+export ROS_AUTOMATIC_DISCOVERY_RANGE=SUBNET
+unset ROS_LOCALHOST_ONLY
 ros2 launch orphbot bringup.launch.py max_pwm:=0.35
 ```
 
@@ -523,3 +525,84 @@ ros2 topic pub /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.0}, angular: {z:
 The publisher sent 20 forward messages and one stop message. Awaiting operator observation for wheel direction. If a side spins backward during the forward command, flip that side with `invert_left` or `invert_right` in `orphbot/config/orphbot.yaml`, rebuild, and retest.
 
 Several `robot_state_publisher` processes were orphaned by earlier interrupted automated tests and were stopped by exact PID. A clean `ps` check afterward showed no leftover bringup processes.
+
+
+## WSL Teleop Networking Diagnosis
+
+User reported that laptop teleop from WSL did nothing. Diagnosis:
+
+- Robot bringup was running and healthy.
+- WSL had mirrored networking enabled in `%UserProfile%\.wslconfig`.
+- WSL could resolve `orphbot.local` to `10.0.0.99` and had LAN addresses on `10.0.0.0/24`.
+- A fresh WSL shell did not have ROS environment variables set.
+- With ROS env set inline, WSL still only saw local topics (`/parameter_events`, `/rosout`) and not robot topics.
+- Windows Hyper-V firewall for WSL showed `DefaultInboundAction: Block`.
+
+Likely cause: inbound UDP DDS discovery/data packets from the robot were blocked before reaching WSL. This explains why teleop launched but robot motion did not happen.
+
+Attempted fix from non-admin PowerShell failed with `Access is denied`, so the rule must be created from Administrator PowerShell:
+
+```powershell
+New-NetFirewallHyperVRule `
+  -Name "OrphBot-ROS2-DDS-from-10.0.0.99" `
+  -DisplayName "OrphBot ROS 2 DDS from robot" `
+  -Direction Inbound `
+  -VMCreatorId "{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}" `
+  -Protocol UDP `
+  -RemoteAddresses 10.0.0.99 `
+  -Action Allow `
+  -Enabled True
+```
+
+After creating the rule, retest from WSL while robot bringup is running:
+
+```bash
+source ~/.bashrc
+source /opt/ros/jazzy/setup.bash
+source ~/orphbot_ws/install/setup.bash
+ros2 daemon stop
+ros2 topic list --no-daemon --spin-time 5
+```
+
+Expected result: WSL sees `/cmd_vel`, `/odom`, `/path`, `/imu/data_raw`, `/robot_description`, `/tf`, and `/tf_static`. This worked only after pinning Cyclone DDS to WSL `eth0` with `orphbot/config/cyclonedds_wsl.xml`; without that file WSL only saw local topics.
+
+
+## WSL Discovery Follow-Up
+
+After the scoped Hyper-V firewall rule was added, WSL discovery still needed Cyclone DDS to be pinned to the LAN-facing WSL interface. WSL route check:
+
+```text
+10.0.0.99 dev eth0 src 10.0.0.49
+```
+
+The working WSL Cyclone config is now tracked at `orphbot/config/cyclonedds_wsl.xml`:
+
+```xml
+<CycloneDDS xmlns='https://cdds.io/config'>
+  <Domain Id='any'>
+    <General>
+      <Interfaces>
+        <NetworkInterface name='eth0' multicast='true' />
+      </Interfaces>
+      <AllowMulticast>true</AllowMulticast>
+    </General>
+  </Domain>
+</CycloneDDS>
+```
+
+Do not include `allow_multicast` as a `NetworkInterface` attribute. The installed Cyclone DDS rejected that attribute.
+
+With this config sourced through `orphbot/config/wsl_env.sh`, WSL discovered the full robot graph:
+
+```text
+/cmd_vel [geometry_msgs/msg/Twist]
+/imu/data_raw [sensor_msgs/msg/Imu]
+/joint_states [sensor_msgs/msg/JointState]
+/odom [nav_msgs/msg/Odometry]
+/path [nav_msgs/msg/Path]
+/robot_description [std_msgs/msg/String]
+/tf [tf2_msgs/msg/TFMessage]
+/tf_static [tf2_msgs/msg/TFMessage]
+```
+
+Later, while old robot bringup was still running and SSH was wedged at banner exchange, WSL again only saw local topics. Reboot the robot and retest from a clean bringup if that happens.

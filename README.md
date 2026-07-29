@@ -110,18 +110,50 @@ rosdep update
 Set the same ROS networking variables on both laptop and robot:
 
 ```bash
-export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
-export ROS_DOMAIN_ID=17
-export ROS_LOCALHOST_ONLY=0
+# Use the env scripts after cloning/building:
+# Robot: source ~/orphbot_ws/src/orphbot-package/orphbot/config/robot_env.sh
+# WSL laptop: source ~/orphbot_ws/src/orphbot-package/orphbot/config/wsl_env.sh
 ```
 
 For convenience, add those lines to `~/.bashrc` on both machines. The robot should have this block near the end of `~/.bashrc`:
 
 ```bash
 # OrphBot ROS 2 networking
-export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
-export ROS_DOMAIN_ID=17
-export ROS_LOCALHOST_ONLY=0
+# Use the env scripts after cloning/building:
+# Robot: source ~/orphbot_ws/src/orphbot-package/orphbot/config/robot_env.sh
+# WSL laptop: source ~/orphbot_ws/src/orphbot-package/orphbot/config/wsl_env.sh
+```
+
+
+## Windows WSL Networking
+
+For Windows laptops, run Ubuntu 24.04 in WSL 2. Native Linux users can skip this section.
+
+Create `%UserProfile%\.wslconfig` on Windows:
+
+```ini
+[wsl2]
+networkingMode=mirrored
+```
+
+Restart WSL from PowerShell:
+
+```powershell
+wsl --shutdown
+```
+
+If WSL can SSH to the robot but `ros2 topic list` does not show robot topics, add this in an Administrator PowerShell window, replacing `10.0.0.99` with the robot IP if needed:
+
+```powershell
+New-NetFirewallHyperVRule `
+  -Name "OrphBot-ROS2-DDS-from-10.0.0.99" `
+  -DisplayName "OrphBot ROS 2 DDS from robot" `
+  -Direction Inbound `
+  -VMCreatorId "{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}" `
+  -Protocol UDP `
+  -RemoteAddresses 10.0.0.99 `
+  -Action Allow `
+  -Enabled True
 ```
 
 ## Clone And Build
@@ -156,6 +188,7 @@ Put the robot on a stand with the wheels off the ground for first tests. The mot
 ```bash
 source /opt/ros/jazzy/setup.bash
 source ~/orphbot_ws/install/setup.bash
+source ~/orphbot_ws/src/orphbot-package/orphbot/config/robot_env.sh
 ros2 launch orphbot bringup.launch.py max_pwm:=0.35
 ```
 
@@ -166,6 +199,7 @@ For a first controlled motor check from another terminal on the robot, keep the 
 ```bash
 source /opt/ros/jazzy/setup.bash
 source ~/orphbot_ws/install/setup.bash
+source ~/orphbot_ws/src/orphbot-package/orphbot/config/robot_env.sh
 ros2 topic pub /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.12}, angular: {z: 0.0}}" -r 10 -t 20 -w 0 --keep-alive 0.1
 ros2 topic pub /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.0}, angular: {z: 0.0}}" --once -w 0 --keep-alive 0.1
 ```
@@ -177,6 +211,7 @@ In a laptop terminal with the same ROS environment variables:
 ```bash
 source /opt/ros/jazzy/setup.bash
 source ~/orphbot_ws/install/setup.bash
+source ~/orphbot_ws/src/orphbot-package/orphbot/config/wsl_env.sh
 ros2 run orphbot keyboard_teleop
 ```
 
@@ -187,6 +222,7 @@ Keys: `W` forward, `S` backward, `A` left, `D` right, `X` stop, `+` faster, `-` 
 ```bash
 source /opt/ros/jazzy/setup.bash
 source ~/orphbot_ws/install/setup.bash
+source ~/orphbot_ws/src/orphbot-package/orphbot/config/wsl_env.sh
 ros2 launch orphbot rviz.launch.py
 ```
 
@@ -197,6 +233,7 @@ Tell everyone nearby before running autonomy. Keep the robot on a stand for the 
 ```bash
 source /opt/ros/jazzy/setup.bash
 source ~/orphbot_ws/install/setup.bash
+source ~/orphbot_ws/src/orphbot-package/orphbot/config/robot_env.sh
 ros2 launch orphbot auton.launch.py max_pwm:=0.35
 ```
 

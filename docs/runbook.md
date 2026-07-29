@@ -196,22 +196,23 @@ orphbot simple_auton
 
 ## Robot ROS Environment
 
-Put this in `~/.bashrc` on the robot:
+For every robot terminal, source ROS, the workspace, and the robot env script in this order:
 
 ```bash
-# OrphBot ROS 2 networking
-export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
-export ROS_DOMAIN_ID=17
-export ROS_LOCALHOST_ONLY=0
-```
-
-For the current shell:
-
-```bash
-source ~/.bashrc
 source /opt/ros/jazzy/setup.bash
 source ~/orphbot_ws/install/setup.bash
+source ~/orphbot_ws/src/orphbot-package/orphbot/config/robot_env.sh
 ```
+
+For convenience after the package has been cloned, this can be added to the end of `~/.bashrc` for interactive robot terminals:
+
+```bash
+source /opt/ros/jazzy/setup.bash
+source ~/orphbot_ws/install/setup.bash
+source ~/orphbot_ws/src/orphbot-package/orphbot/config/robot_env.sh
+```
+
+Do not rely on `source ~/.bashrc` inside non-interactive scripts; Ubuntu `.bashrc` may return early for non-interactive shells.
 
 ## Bringup On Robot
 
@@ -220,6 +221,7 @@ Keep the robot on a stand for first tests.
 ```bash
 source /opt/ros/jazzy/setup.bash
 source ~/orphbot_ws/install/setup.bash
+source ~/orphbot_ws/src/orphbot-package/orphbot/config/robot_env.sh
 ros2 launch orphbot bringup.launch.py max_pwm:=0.35
 ```
 
@@ -260,6 +262,7 @@ Terminal 1 on the robot:
 ```bash
 source /opt/ros/jazzy/setup.bash
 source ~/orphbot_ws/install/setup.bash
+source ~/orphbot_ws/src/orphbot-package/orphbot/config/robot_env.sh
 ros2 launch orphbot bringup.launch.py max_pwm:=0.35
 ```
 
@@ -268,11 +271,107 @@ Terminal 2 on the robot:
 ```bash
 source /opt/ros/jazzy/setup.bash
 source ~/orphbot_ws/install/setup.bash
+source ~/orphbot_ws/src/orphbot-package/orphbot/config/robot_env.sh
 ros2 topic pub /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.12}, angular: {z: 0.0}}" -r 10 -t 20 -w 0 --keep-alive 0.1
 ros2 topic pub /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.0}, angular: {z: 0.0}}" --once -w 0 --keep-alive 0.1
 ```
 
 If a side spins backward during the forward command, set `invert_left: true` or `invert_right: true` in `orphbot/config/orphbot.yaml`, rebuild, and retest.
+
+
+## Windows WSL Networking For Teleop And RViz
+
+The Waypoint guide should assume the laptop is Windows running Ubuntu 24.04 in WSL 2. Native Linux can skip this Windows/WSL section and use the same ROS commands directly. macOS was not tested for this robot.
+
+The working Windows path needs WSL mirrored networking plus a Windows Hyper-V firewall rule. Without the firewall rule, WSL can SSH to the robot but ROS 2 teleop/RViz may show no robot topics and `/cmd_vel` may never reach the Pi.
+
+Check WSL version from PowerShell:
+
+```powershell
+wsl --version
+```
+
+The tested laptop used WSL `2.6.1.0` with mirrored networking. Create or edit `%UserProfile%\.wslconfig` on Windows:
+
+```ini
+[wsl2]
+networkingMode=mirrored
+```
+
+Restart WSL from PowerShell:
+
+```powershell
+wsl --shutdown
+```
+
+Open Ubuntu in WSL again and confirm it is on the same LAN as the robot:
+
+```bash
+ip -brief addr
+getent hosts orphbot.local
+```
+
+Expected: a `10.0.0.x/24` address in WSL and `orphbot.local` resolving to the robot IP, `10.0.0.99` on the example robot.
+
+On the tested Windows laptop, WSL mirrored networking was enabled but the Hyper-V firewall still had inbound traffic blocked:
+
+```powershell
+Get-NetFirewallHyperVVMSetting -PolicyStore ActiveStore
+```
+
+Observed:
+
+```text
+DefaultInboundAction: Block
+```
+
+That blocked ROS 2 DDS packets from the robot back into WSL. Add a scoped inbound UDP rule from the robot IP in an Administrator PowerShell window:
+
+```powershell
+New-NetFirewallHyperVRule `
+  -Name "OrphBot-ROS2-DDS-from-10.0.0.99" `
+  -DisplayName "OrphBot ROS 2 DDS from robot" `
+  -Direction Inbound `
+  -VMCreatorId "{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}" `
+  -Protocol UDP `
+  -RemoteAddresses 10.0.0.99 `
+  -Action Allow `
+  -Enabled True
+```
+
+If the robot gets a different IP, replace `10.0.0.99` in the rule name, display name, and `-RemoteAddresses` value. To remove the rule later:
+
+```powershell
+Remove-NetFirewallHyperVRule -Name "OrphBot-ROS2-DDS-from-10.0.0.99"
+```
+
+After the firewall rule, restart the ROS daemon in WSL and verify discovery while robot bringup is running:
+
+```bash
+source /opt/ros/jazzy/setup.bash
+source ~/orphbot_ws/install/setup.bash
+source ~/orphbot_ws/src/orphbot-package/orphbot/config/wsl_env.sh
+ros2 daemon stop
+ros2 topic list --no-daemon --spin-time 5
+```
+
+Expected robot topics include:
+
+```text
+/cmd_vel
+/imu/data_raw
+/odom
+/path
+/robot_description
+/tf
+/tf_static
+```
+
+References used for this internal note:
+
+- Microsoft WSL networking docs: mirrored mode improves LAN compatibility and supports multicast.
+- Microsoft WSL networking docs: Hyper-V firewall settings may need an inbound allow rule for WSL mirrored networking.
+- ROS 2 discovery docs: `ROS_AUTOMATIC_DISCOVERY_RANGE=SUBNET` enables discovery on the local subnet for DDS middleware.
 
 ## Laptop Install And Build
 
@@ -312,14 +411,15 @@ rosdep install --from-paths src -y --ignore-src
 colcon build --symlink-install
 ```
 
-Put this in laptop `~/.bashrc` too:
+For WSL laptop terminals, source the WSL env script after ROS and workspace setup:
 
 ```bash
-# OrphBot ROS 2 networking
-export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
-export ROS_DOMAIN_ID=17
-export ROS_LOCALHOST_ONLY=0
+source /opt/ros/jazzy/setup.bash
+source ~/orphbot_ws/install/setup.bash
+source ~/orphbot_ws/src/orphbot-package/orphbot/config/wsl_env.sh
 ```
+
+For convenience after the package has been cloned, the same three lines can be added to the end of WSL `~/.bashrc` for interactive terminals.
 
 ## Teleop From Laptop
 
@@ -329,16 +429,17 @@ Robot terminal:
 source ~/.bashrc
 source /opt/ros/jazzy/setup.bash
 source ~/orphbot_ws/install/setup.bash
+source ~/orphbot_ws/src/orphbot-package/orphbot/config/robot_env.sh
 ros2 launch orphbot bringup.launch.py max_pwm:=0.35
 ```
 
 Laptop terminal:
 
 ```bash
-source ~/.bashrc
 source /opt/ros/jazzy/setup.bash
 source ~/orphbot_ws/install/setup.bash
-ros2 topic list
+source ~/orphbot_ws/src/orphbot-package/orphbot/config/wsl_env.sh
+ros2 topic list --no-daemon --spin-time 5
 ros2 run orphbot keyboard_teleop
 ```
 
@@ -362,9 +463,9 @@ Robot must be running bringup first.
 Laptop terminal:
 
 ```bash
-source ~/.bashrc
 source /opt/ros/jazzy/setup.bash
 source ~/orphbot_ws/install/setup.bash
+source ~/orphbot_ws/src/orphbot-package/orphbot/config/wsl_env.sh
 ros2 launch orphbot rviz.launch.py
 ```
 
@@ -385,9 +486,9 @@ The wheels are fixed in the URDF because there are no encoders and no joint stat
 Robot on a stand for the first run:
 
 ```bash
-source ~/.bashrc
 source /opt/ros/jazzy/setup.bash
 source ~/orphbot_ws/install/setup.bash
+source ~/orphbot_ws/src/orphbot-package/orphbot/config/robot_env.sh
 ros2 launch orphbot auton.launch.py max_pwm:=0.35
 ```
 
