@@ -773,7 +773,7 @@ User added `orphbot/meshes/orphbot_body.stl`. The STL is binary, about 75 MB, an
 
 Changes made:
 
-- Removed the URDF box fallback, `base_footprint`, wheel links, and `imu_link`; the robot model now publishes one visual link, `base_link`, from the STL only.
+- Removed the URDF box fallback, `base_footprint`, wheel links, and `imu_link`; the robot model now publishes one visual-only link, `base_link`, from the STL only.
 - Kept `odom_publisher` as the source of `odom -> base_link`; removing `base_footprint` avoids the RViz warning about no transform from `base_footprint` to `map`.
 - Restored the RViz grid and added separate `Origin` axes at `map` plus `Robot Axes` at `base_link` so the robot axes can be shown/hidden independently.
 - Replaced terminal teleop with Tk GUI teleop because terminal stdin receives text/key-repeat characters, not real key-up events. The GUI uses `KeyPress`/`KeyRelease` events with a small release debounce for WSL/X key-repeat behavior.

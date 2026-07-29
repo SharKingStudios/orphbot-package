@@ -518,7 +518,7 @@ RViz should show:
 - Robot axes at `base_link`, which can be shown or hidden from the Displays panel.
 - `/path` trail.
 
-The `map` frame is an identity visualization frame equal to `odom`; there is no SLAM map. The RViz config intentionally hides TF, odom arrows, and IMU displays so the guide screenshots stay focused. The URDF intentionally publishes one visual link, `base_link`, backed by the STL mesh. It does not include separate wheel links, an IMU link, `base_footprint`, or a joint state publisher.
+The `map` frame is an identity visualization frame equal to `odom`; there is no SLAM map. The RViz config intentionally hides TF, odom arrows, and IMU displays so the guide screenshots stay focused. The URDF intentionally publishes one visual-only link, `base_link`, backed by the STL mesh. It does not include separate wheel links, an IMU link, `base_footprint`, or a joint state publisher.
 
 ## CAD And RViz Mesh Slot
 
