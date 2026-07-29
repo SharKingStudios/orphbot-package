@@ -3,9 +3,9 @@
 <package format="3">
   <name>orphbot</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
-  <maintainer email="logan@todo.todo">logan</maintainer>
-  <license>TODO: License declaration</license>
+  <description>ROS 2 nodes and guide assets for the OrphBot waypoint tutorial robot.</description>
+  <maintainer email="brushfire257@gmail.com">logan</maintainer>
+  <license>MIT</license>
 
   <depend>rclpy</depend>
   <depend>geometry_msgs</depend>
@@ -14,6 +14,9 @@
   <depend>tf2_ros</depend>
   <depend>robot_state_publisher</depend>
   <depend>xacro</depend>
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

@@ -1,2 +1,226 @@
-# orphbot package
-The ROS2 package for the example Waypoint robot.
+# OrphBot ROS 2 Package
+
+OrphBot is a small Raspberry Pi Zero 2 W skid-steer robot for the Hack Club Waypoint guide. This package provides the real robot bringup nodes, keyboard teleop, command-based odometry, an MPU6050 IMU node, a simple autonomous routine, and RViz assets.
+
+The robot can drive from `/cmd_vel`, publish `/odom`, `/path`, TF from `odom` to `base_link`, and publish raw IMU data on `/imu/data_raw` once the MPU6050 is visible on I2C.
+
+## Hardware
+
+- Raspberry Pi Zero 2 W with Ubuntu 24.04 64-bit
+- Two DRV8833 motor driver modules
+- Four DC motors in skid steer
+- MPU6050 IMU breakout
+- 9 V battery for motors only
+- 5 V buck converter for the Pi only
+- Common ground between Pi, motor drivers, battery, and buck converter
+
+Never feed 9 V into the Pi.
+
+## Wiring Summary
+
+Use BCM GPIO numbers in software.
+
+Left DRV8833:
+
+| DRV8833 pin | Pi GPIO | Physical pin |
+| --- | --- | --- |
+| IN1 | GPIO5 | 29 |
+| IN2 | GPIO6 | 31 |
+| IN3 | GPIO13 | 33 |
+| IN4 | GPIO19 | 35 |
+| EEP/SLP | GPIO12 or 3V3 | 32 or 1 |
+
+Right DRV8833:
+
+| DRV8833 pin | Pi GPIO | Physical pin |
+| --- | --- | --- |
+| IN1 | GPIO20 | 38 |
+| IN2 | GPIO21 | 40 |
+| IN3 | GPIO23 | 16 |
+| IN4 | GPIO24 | 18 |
+| EEP/SLP | GPIO12 or 3V3 | 32 or 1 |
+
+MPU6050:
+
+| MPU6050 pin | Pi pin |
+| --- | --- |
+| VCC | 3V3, physical pin 1 |
+| GND | GND, physical pin 6 |
+| SDA | GPIO2/SDA, physical pin 3 |
+| SCL | GPIO3/SCL, physical pin 5 |
+| AD0 | GND for `0x68`, 3V3 for `0x69` |
+| INT | optional GPIO4, physical pin 7 |
+
+## Flash And SSH
+
+1. Flash Ubuntu Server 24.04 64-bit for Raspberry Pi.
+2. On the boot partition, create an empty file named `ssh`.
+3. Boot the Pi and find it as `orphbot.local`.
+4. SSH in:
+
+```bash
+ssh ubuntu@orphbot.local
+```
+
+## Install ROS 2 Jazzy
+
+On the robot, install a minimal ROS setup plus robot hardware tools:
+
+```bash
+sudo apt update
+sudo apt install -y software-properties-common curl gnupg lsb-release
+sudo add-apt-repository universe
+sudo apt update
+sudo apt install -y ros-jazzy-ros-base python3-colcon-common-extensions python3-rosdep python3-gpiozero python3-lgpio python3-smbus i2c-tools git
+```
+
+On the laptop, install the desktop tools so RViz is available:
+
+```bash
+sudo apt update
+sudo apt install -y ros-jazzy-desktop python3-colcon-common-extensions python3-rosdep git
+```
+
+Initialize `rosdep` once per machine if it has not been initialized:
+
+```bash
+sudo rosdep init
+rosdep update
+```
+
+## ROS Networking
+
+Set the same ROS networking variables on both laptop and robot:
+
+```bash
+export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+export ROS_DOMAIN_ID=17
+export ROS_LOCALHOST_ONLY=0
+```
+
+For convenience, add those lines to `~/.bashrc` on both machines.
+
+## Clone And Build
+
+On each machine:
+
+```bash
+mkdir -p ~/orphbot_ws/src
+cd ~/orphbot_ws/src
+git clone https://github.com/SharKingStudios/orphbot-package.git
+cd ~/orphbot_ws
+source /opt/ros/jazzy/setup.bash
+rosdep install --from-paths src -y --ignore-src
+colcon build --symlink-install
+source install/setup.bash
+```
+
+Update later with:
+
+```bash
+cd ~/orphbot_ws/src/orphbot-package
+git pull
+cd ~/orphbot_ws
+colcon build --symlink-install
+source install/setup.bash
+```
+
+## Run Bringup On The Robot
+
+Put the robot on a stand with the wheels off the ground for first tests.
+
+```bash
+source /opt/ros/jazzy/setup.bash
+source ~/orphbot_ws/install/setup.bash
+ros2 launch orphbot bringup.launch.py max_pwm:=0.35
+```
+
+The bringup starts the motor driver, robot description, odometry, and MPU6050 node. If the IMU is not detected, fix I2C before treating the robot as complete.
+
+For laptop-only testing:
+
+```bash
+ros2 launch orphbot bringup.launch.py mock_hardware:=true use_imu:=false
+```
+
+## Drive From The Laptop
+
+In a laptop terminal with the same ROS environment variables:
+
+```bash
+source /opt/ros/jazzy/setup.bash
+source ~/orphbot_ws/install/setup.bash
+ros2 run orphbot keyboard_teleop
+```
+
+Keys: `W` forward, `S` backward, `A` left, `D` right, `X` stop, `+` faster, `-` slower, `Q` quit.
+
+## Run RViz From The Laptop
+
+```bash
+source /opt/ros/jazzy/setup.bash
+source ~/orphbot_ws/install/setup.bash
+ros2 launch orphbot rviz.launch.py
+```
+
+If the robot is not running bringup, use:
+
+```bash
+ros2 launch orphbot rviz.launch.py use_robot_state_publisher:=true
+```
+
+## Run Simple Auton
+
+Tell everyone nearby before running autonomy. Keep the robot on a stand for the first run.
+
+```bash
+source /opt/ros/jazzy/setup.bash
+source ~/orphbot_ws/install/setup.bash
+ros2 launch orphbot auton.launch.py max_pwm:=0.35
+```
+
+This drives forward briefly, stops, turns, stops, then drives forward again.
+
+## MPU6050 Checks
+
+The MPU6050 is required for the final robot. Start by confirming the bus and address:
+
+```bash
+ls -l /dev/i2c*
+groups
+grep -n "i2c" /boot/firmware/config.txt
+i2cdetect -y 1
+sudo i2cdetect -y 1
+```
+
+`/boot/firmware/config.txt` should include:
+
+```text
+dtparam=i2c_arm=on
+dtparam=i2c_arm_baudrate=100000
+```
+
+If AD0 is connected to GND, expect `0x68`. If AD0 is connected to 3V3, expect `0x69`.
+
+If bus 1 shows all `--`, scan every I2C bus:
+
+```bash
+for b in /dev/i2c-*; do n=${b#/dev/i2c-}; echo "Bus $n"; sudo i2cdetect -y "$n"; done
+```
+
+If no bus shows `68` or `69`, recheck power at the IMU VCC/GND pins, common ground, SDA/SCL not swapped, AD0, header solder joints, and whether the breakout is safe for Pi 3.3 V I2C logic. Do not connect VCC to 5 V unless the exact breakout is known to be 5 V compatible and not pulling SDA/SCL up to 5 V.
+
+## Troubleshooting
+
+If topics do not appear across Wi-Fi, confirm both machines use the same values:
+
+```bash
+echo $RMW_IMPLEMENTATION
+echo $ROS_DOMAIN_ID
+echo $ROS_LOCALHOST_ONLY
+ros2 topic list
+```
+
+If SSH was not enabled during imaging, shut down the Pi, mount the boot partition, and create the empty `ssh` file again.
+
+Optional tools like `htop`, router client lists, and advanced Cyclone DDS XML configs are useful for debugging, but they are not part of the main path.

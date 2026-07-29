@@ -1,0 +1,31 @@
+motor_driver:
+  ros__parameters:
+    mock_hardware: false
+    max_pwm: 0.35
+    deadband: 0.04
+    cmd_timeout: 0.5
+    max_linear_speed: 0.4
+    max_angular_speed: 1.5
+    enable_pin: -1
+    left_front_pins: [5, 6]
+    left_rear_pins: [13, 19]
+    right_front_pins: [20, 21]
+    right_rear_pins: [23, 24]
+    invert_left: false
+    invert_right: false
+
+odom_publisher:
+  ros__parameters:
+    odom_frame: odom
+    base_frame: base_link
+    publish_rate: 30.0
+    linear_scale: 1.0
+    angular_scale: 1.0
+    path_max_poses: 500
+
+mpu6050_node:
+  ros__parameters:
+    bus: 1
+    address: 104
+    frame_id: imu_link
+    publish_rate: 50.0
