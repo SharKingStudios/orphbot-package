@@ -126,7 +126,7 @@ Warning: Permanently added 'orphbot.local' (ED25519) to the list of known hosts.
 ubuntu@orphbot.local: Permission denied (publickey,password).
 ```
 
-Current blocker: SSH reaches the robot, but authentication is not available from this WSL environment. Robot-side OS, ROS environment, workspace, and I2C/IMU state could not be inspected yet.
+Historical note: SSH initially reached the robot but authentication was not available. This was later fixed by adding the laptop public key to the robot authorized keys file.
 
 ## IMU Checks Still Needed On Robot
 
@@ -239,7 +239,7 @@ No SMBus module found. Install python3-smbus or python3-smbus2 on the Pi.
 
 This is expected off the Raspberry Pi and confirms the node fails with a clear message.
 
-## Robot State Still Unverified
+## Historical Robot SSH Blocker
 
 Direct PowerShell SSH check:
 
@@ -299,3 +299,141 @@ Summary: 1 package finished [0.64s]
 ```
 
 `test_copyright.py` was skipped by the generated ROS 2 package test setup. `test_flake8.py` and `test_pep257.py` passed.
+
+
+## Robot Bringup Session - July 29, 2026
+
+SSH authentication was fixed by adding the laptop public key to `~/.ssh/authorized_keys` on the robot. Direct PowerShell SSH then worked:
+
+```powershell
+ssh ubuntu@orphbot.local hostname
+```
+
+Result:
+
+```text
+orphbot
+```
+
+Robot OS:
+
+```text
+hostname: orphbot
+Ubuntu 24.04.4 LTS
+kernel: 6.8.0-1057-raspi
+aarch64 Raspberry Pi
+```
+
+ROS environment variables were not set by default in the SSH shell:
+
+```text
+RMW=
+DOMAIN=
+LOCALHOST=
+```
+
+For guide runs, set:
+
+```bash
+export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+export ROS_DOMAIN_ID=17
+export ROS_LOCALHOST_ONLY=0
+```
+
+Robot I2C state:
+
+```text
+/dev/i2c-1 exists
+/dev/i2c-2 exists
+ubuntu is in the i2c group
+/boot/firmware/config.txt contains dtparam=i2c_arm=on
+/boot/firmware/config.txt currently contains dtparam=i2c_arm_baudrate=50000
+```
+
+`i2cdetect -y 1` now shows the MPU6050 at `0x68`:
+
+```text
+60: -- -- -- -- -- -- -- -- 68 -- -- -- -- -- -- --
+```
+
+Direct SMBus check:
+
+```bash
+python3 -c 'from smbus2 import SMBus; b=SMBus(1); print(hex(b.read_byte_data(0x68,0x75)))'
+```
+
+Actual result from the register read was:
+
+```text
+0x68
+```
+
+The Python libraries needed by the hardware nodes are available on the robot:
+
+```text
+gpiozero=ok
+lgpio=ok
+smbus2=ok
+```
+
+`python3-smbus` is not installed, but `smbus2` is installed and the node supports it.
+
+Robot repo update and build:
+
+```bash
+cd ~/orphbot_ws/src/orphbot-package
+git pull
+cd ~/orphbot_ws
+source /opt/ros/jazzy/setup.bash
+colcon build --symlink-install
+```
+
+Result:
+
+```text
+Updating cde73a9..3115046
+Fast-forward
+Starting >>> orphbot
+Finished <<< orphbot [16.3s]
+Summary: 1 package finished [18.4s]
+```
+
+Installed robot executables:
+
+```text
+orphbot keyboard_teleop
+orphbot motor_driver
+orphbot mpu6050_node
+orphbot odom_publisher
+orphbot simple_auton
+```
+
+ROS IMU node verification:
+
+```bash
+ros2 run orphbot mpu6050_node
+ros2 topic echo /imu/data_raw --once
+```
+
+Result: `/imu/data_raw` published a real IMU sample. Example values:
+
+```text
+frame_id: imu_link
+angular_velocity.x: 0.13509647797879773
+angular_velocity.y: 0.0019984686091538122
+angular_velocity.z: -0.004529862180748642
+linear_acceleration.x: -0.26336218261718747
+linear_acceleration.y: -0.24181436767578124
+linear_acceleration.z: 9.215282189941405
+```
+
+Current IMU conclusion: the MPU6050 is detected and publishing through ROS. For the final guide setup, change the I2C baud rate to `100000` and reboot:
+
+```bash
+sudo sed -i 's/^dtparam=i2c_arm_baudrate=.*/dtparam=i2c_arm_baudrate=100000/' /boot/firmware/config.txt
+sudo reboot
+```
+
+## Real Motor Bringup Still Needed
+
+The robot build is complete and the IMU works. The remaining robot-side validation is to run bringup with the robot on a stand, then publish one conservative `/cmd_vel` command and verify all wheels spin in the intended directions. Do not publish drive commands until the operator has confirmed the robot is safe on the stand.
