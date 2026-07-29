@@ -667,3 +667,67 @@ User also reported one motor only spins one direction and yellow TT motors need 
 - One-direction behavior points to one DRV8833 input leg, one GPIO wire, one solder joint, or one driver channel not working.
 - Added `ros2 run orphbot motor_test <motor> --pwm 0.55 --seconds 1.5` to test one motor forward and reverse with bringup stopped so the diagnostic owns the GPIO pins.
 - Use the test to determine whether the failure follows the motor/wiring or stays with the DRV8833 channel.
+
+
+## Verification After Map Frame And Motor Diagnostic Changes
+
+Commits deployed to the robot:
+
+```text
+15b4a0b Add RViz map frame and motor diagnostic
+665cb9f Tune ROS publish rates for Pi Zero 2 W
+```
+
+Robot update/build command used:
+
+```bash
+cd ~/orphbot_ws/src/orphbot-package
+git pull --ff-only
+cd ~/orphbot_ws
+source /opt/ros/jazzy/setup.bash
+colcon build --symlink-install
+```
+
+Robot bringup was restarted with:
+
+```bash
+source /opt/ros/jazzy/setup.bash
+source ~/orphbot_ws/install/setup.bash
+source ~/orphbot_ws/src/orphbot-package/orphbot/config/robot_env.sh
+ros2 launch orphbot bringup.launch.py max_pwm:=0.35
+```
+
+Launch log confirmed:
+
+```text
+map_to_odom_publisher: from 'map' to 'odom'
+robot_state_publisher: Robot initialized
+motor_driver: Motor driver ready, max_pwm=0.35
+mpu6050_node: MPU6050 publishing from bus 1, address 0x68
+odom_publisher: Command-based odometry publisher ready
+```
+
+WSL verification command:
+
+```bash
+cd ~/orphbot_ws
+source /opt/ros/jazzy/setup.bash
+source install/setup.bash
+source ~/orphbot_ws/src/orphbot-package/orphbot/config/wsl_env.sh
+ros2 topic list --no-daemon --spin-time 10 -t
+ros2 run tf2_ros tf2_echo map odom
+ros2 run tf2_ros tf2_echo map base_link
+```
+
+WSL saw `/cmd_vel`, `/imu/data_raw`, `/odom`, `/path`, `/robot_description`, `/tf`, and `/tf_static`. `tf2_echo` resolved `map -> odom` and `map -> base_link`, so RViz should no longer fail because `map` does not exist. The first line from `tf2_echo` can still say it is waiting before DDS discovery finishes; the transform output after that is the important part.
+
+The real motor diagnostic was run on the robot with bringup stopped:
+
+```bash
+ros2 run orphbot motor_test left_front --pwm 0.55 --seconds 1.5 --pause 0.8
+ros2 run orphbot motor_test left_rear --pwm 0.55 --seconds 1.5 --pause 0.8
+ros2 run orphbot motor_test right_front --pwm 0.55 --seconds 1.5 --pause 0.8
+ros2 run orphbot motor_test right_rear --pwm 0.55 --seconds 1.5 --pause 0.8
+```
+
+Software-side result: all four commands completed both phases and stopped without GPIO or ROS errors. Hardware-side result still needs the operator observation: record which named motor failed, and whether it failed during phase 1, phase 2, or both.
