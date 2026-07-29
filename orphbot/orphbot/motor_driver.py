@@ -7,15 +7,7 @@ from rclpy.node import Node
 
 
 class MotorChannel:
-    def __init__(self, name, forward_pin, reverse_pin, mock_hardware, pin_factory=None):
-        self.name = name
-        self.mock_hardware = mock_hardware
-        self.forward = None
-        self.reverse = None
-
-        if mock_hardware:
-            return
-
+    def __init__(self, forward_pin, reverse_pin, pin_factory):
         from gpiozero import PWMOutputDevice
 
         self.forward = PWMOutputDevice(forward_pin, pin_factory=pin_factory)
@@ -23,9 +15,6 @@ class MotorChannel:
 
     def set_speed(self, speed):
         speed = max(-1.0, min(1.0, float(speed)))
-        if self.mock_hardware:
-            return
-
         if speed > 0:
             self.forward.value = speed
             self.reverse.value = 0.0
@@ -40,8 +29,6 @@ class MotorChannel:
         self.set_speed(0.0)
 
     def close(self):
-        if self.mock_hardware:
-            return
         self.stop()
         self.forward.close()
         self.reverse.close()
@@ -51,7 +38,6 @@ class MotorDriver(Node):
     def __init__(self):
         super().__init__('motor_driver')
 
-        self.declare_parameter('mock_hardware', True)
         self.declare_parameter('max_pwm', 0.35)
         self.declare_parameter('deadband', 0.04)
         self.declare_parameter('cmd_timeout', 0.5)
@@ -65,7 +51,6 @@ class MotorDriver(Node):
         self.declare_parameter('invert_left', False)
         self.declare_parameter('invert_right', False)
 
-        self.mock_hardware = self.get_parameter('mock_hardware').value
         self.max_pwm = float(self.get_parameter('max_pwm').value)
         self.deadband = float(self.get_parameter('deadband').value)
         self.cmd_timeout = float(self.get_parameter('cmd_timeout').value)
@@ -75,32 +60,34 @@ class MotorDriver(Node):
         self.invert_right = bool(self.get_parameter('invert_right').value)
 
         self.enable = None
-        pin_factory = None
-        if not self.mock_hardware:
-            try:
-                from gpiozero import OutputDevice
-                from gpiozero.pins.lgpio import LGPIOFactory
+        try:
+            from gpiozero import OutputDevice
+            from gpiozero.pins.lgpio import LGPIOFactory
 
-                pin_factory = LGPIOFactory()
-                enable_pin = int(self.get_parameter('enable_pin').value)
-                if enable_pin >= 0:
-                    self.enable = OutputDevice(enable_pin, active_high=True, initial_value=True,
-                                               pin_factory=pin_factory)
-            except Exception as exc:
-                raise RuntimeError(
-                    'GPIO setup failed. On the Pi, install python3-gpiozero and '
-                    'python3-lgpio, or run with mock_hardware:=true on a laptop.'
-                ) from exc
+            pin_factory = LGPIOFactory()
+            enable_pin = int(self.get_parameter('enable_pin').value)
+            if enable_pin >= 0:
+                self.enable = OutputDevice(
+                    enable_pin,
+                    active_high=True,
+                    initial_value=True,
+                    pin_factory=pin_factory,
+                )
+        except Exception as exc:
+            raise RuntimeError(
+                'GPIO setup failed. Run this node on the Raspberry Pi after installing '
+                'python3-gpiozero and python3-lgpio.'
+            ) from exc
 
         motor_specs = [
-            ('left_front', 'left_front_pins'),
-            ('left_rear', 'left_rear_pins'),
-            ('right_front', 'right_front_pins'),
-            ('right_rear', 'right_rear_pins'),
+            ('left_front_pins'),
+            ('left_rear_pins'),
+            ('right_front_pins'),
+            ('right_rear_pins'),
         ]
         self.motors = [
-            MotorChannel(name, *self._pin_pair(pin_param), self.mock_hardware, pin_factory)
-            for name, pin_param in motor_specs
+            MotorChannel(*self._pin_pair(pin_param), pin_factory)
+            for pin_param in motor_specs
         ]
 
         self.last_cmd_time = 0.0
@@ -108,9 +95,7 @@ class MotorDriver(Node):
         self.last_right = 0.0
         self.create_subscription(Twist, 'cmd_vel', self.cmd_vel_callback, 10)
         self.create_timer(0.05, self.watchdog)
-
-        mode = 'mock hardware' if self.mock_hardware else 'real GPIO'
-        self.get_logger().info(f'Motor driver ready in {mode} mode, max_pwm={self.max_pwm:.2f}')
+        self.get_logger().info(f'Motor driver ready, max_pwm={self.max_pwm:.2f}')
 
     def _pin_pair(self, parameter_name):
         pins = list(self.get_parameter(parameter_name).value)
@@ -153,9 +138,6 @@ class MotorDriver(Node):
             motor.set_speed(left)
         for motor in self.motors[2:]:
             motor.set_speed(right)
-
-        if self.mock_hardware and (left != self.last_left or right != self.last_right):
-            self.get_logger().info(f'mock motor output left={left:.2f} right={right:.2f}')
         self.last_left = left
         self.last_right = right
 

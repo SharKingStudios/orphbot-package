@@ -127,7 +127,7 @@ source install/setup.bash
 
 ## Run Bringup On The Robot
 
-Put the robot on a stand with the wheels off the ground for first tests.
+Put the robot on a stand with the wheels off the ground for first tests. The motor driver talks to the Raspberry Pi GPIO pins, so run bringup on the robot.
 
 ```bash
 source /opt/ros/jazzy/setup.bash
@@ -136,12 +136,6 @@ ros2 launch orphbot bringup.launch.py max_pwm:=0.35
 ```
 
 The bringup starts the motor driver, robot description, odometry, and MPU6050 node. If the IMU is not detected, fix I2C before treating the robot as complete.
-
-For laptop-only testing:
-
-```bash
-ros2 launch orphbot bringup.launch.py mock_hardware:=true use_imu:=false
-```
 
 ## Drive From The Laptop
 
@@ -161,12 +155,6 @@ Keys: `W` forward, `S` backward, `A` left, `D` right, `X` stop, `+` faster, `-` 
 source /opt/ros/jazzy/setup.bash
 source ~/orphbot_ws/install/setup.bash
 ros2 launch orphbot rviz.launch.py
-```
-
-If the robot is not running bringup, use:
-
-```bash
-ros2 launch orphbot rviz.launch.py use_robot_state_publisher:=true
 ```
 
 ## Run Simple Auton

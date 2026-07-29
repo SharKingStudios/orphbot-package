@@ -181,7 +181,7 @@ Notes:
 - No joint state publisher was added. The wheel links use fixed joints in URDF so `robot_state_publisher` does not need `/joint_states`.
 - Odometry is command-based dead reckoning from `/cmd_vel`. It publishes `/odom`, `/path`, and TF from `odom` to `base_link`.
 - The IMU node is part of bringup by default and reports clear errors if I2C or the MPU6050 is unavailable.
-- `motor_driver` defaults to `mock_hardware:=true` for laptop safety. Robot launch passes `mock_hardware:=false` by default.
+- The motor driver uses Raspberry Pi GPIO directly and is intended to run on the robot.
 
 ## Local Validation After Implementation
 
@@ -221,47 +221,9 @@ Finished <<< orphbot [0.56s]
 Summary: 1 package finished [0.61s]
 ```
 
-Mock motor runtime test:
+Motor runtime test:
 
-```bash
-cd ~/orphbot_ws
-source /opt/ros/jazzy/setup.bash
-source install/setup.bash
-export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
-export ROS_DOMAIN_ID=17
-export ROS_LOCALHOST_ONLY=0
-ros2 run orphbot motor_driver --ros-args -p mock_hardware:=true
-ros2 topic pub /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.2}, angular: {z: 0.0}}" --once
-```
-
-Observed motor log:
-
-```text
-Motor driver ready in mock hardware mode, max_pwm=0.35
-mock motor output left=0.17 right=0.17
-mock motor output left=0.00 right=0.00
-```
-
-The final zero output came from the command watchdog, so the node stops safely when commands stop.
-
-Mock bringup launch test:
-
-```bash
-cd ~/orphbot_ws
-source /opt/ros/jazzy/setup.bash
-source install/setup.bash
-ros2 launch orphbot bringup.launch.py mock_hardware:=true use_imu:=false
-```
-
-Observed launch output:
-
-```text
-robot_state_publisher: Robot initialized
-motor_driver: Motor driver ready in mock hardware mode, max_pwm=0.35
-odom_publisher: Command-based odometry publisher ready
-```
-
-The launch was ended with `timeout`, so the command returned nonzero only because the long-running launch was intentionally stopped.
+The motor driver now uses real Raspberry Pi GPIO only. Do not run it on the laptop. First runtime validation must happen on the robot with the wheels off the ground and `max_pwm:=0.35`.
 
 Local IMU startup check:
 

@@ -1,6 +1,5 @@
 motor_driver:
   ros__parameters:
-    mock_hardware: false
     max_pwm: 0.35
     deadband: 0.04
     cmd_timeout: 0.5
