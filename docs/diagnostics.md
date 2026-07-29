@@ -785,3 +785,37 @@ Changes made:
 `robot_state_publisher` was removed from bringup because the STL-only URDF has no joints and does not need fixed-link TF publication. A small `robot_description_publisher` node now publishes `/robot_description` with transient-local QoS for RViz. The TF tree is only `map -> odom -> base_link`, where `map -> odom` comes from the static transform publisher and `odom -> base_link` comes from `odom_publisher`.
 
 This also removes the unnecessary `/joint_states` subscription/topic created by `robot_state_publisher`.
+
+
+## Verification After Robot Description Publisher Update
+
+Commits deployed to the robot:
+
+```text
+2912cf5 Use STL robot model and GUI teleop events
+628f146 Make robot URDF visual STL only
+b85347b Publish robot description without joint states
+```
+
+Robot was fast-forwarded, rebuilt, and bringup restarted. Launch log confirmed:
+
+```text
+map_to_odom_publisher: from 'map' to 'odom'
+robot_description_publisher: Publishing STL robot description for RViz
+motor_driver: Motor driver ready, max_pwm=0.35
+mpu6050_node: MPU6050 publishing from bus 1, address 0x68
+odom_publisher: Command-based odometry publisher ready
+```
+
+The previous KDL root-link inertia warning is gone because the URDF is now visual-only. WSL topic discovery now shows no `/joint_states` topic. `/robot_description` has one transient-local publisher and RViz has a matching transient-local subscription.
+
+A transient-local WSL subscriber sampled `/robot_description` and verified:
+
+```text
+has_stl True
+has_base_footprint False
+has_wheel False
+has_imu_link False
+```
+
+WSL also resolved `map -> base_link` with `tf2_echo`. Tk is installed in WSL (`Tk 8.6`) for the GUI teleop window.
