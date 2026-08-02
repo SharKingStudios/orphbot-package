@@ -1,55 +1,62 @@
 # OrphBot ROS 2 Package
 
-OrphBot is a small Raspberry Pi Zero 2 W skid-steer robot for the Hack Club Waypoint guide. This package provides the real robot bringup nodes, keyboard teleop, command-based odometry, an MPU6050 IMU node, a simple autonomous routine, and RViz assets.
+OrphBot is a small Raspberry Pi Zero 2 W skid-steer robot for the Hack Club Waypoint guide. This package provides the real robot bringup nodes, keyboard teleop, Xbox-controller teleop, command-based odometry, an MPU6050 IMU node, an OLED fluid-display node, a simple autonomous routine, and RViz assets.
 
-The robot can drive from `/cmd_vel`, publish `/odom`, `/path`, TF from `odom` to `base_link`, and publish raw IMU data on `/imu/data_raw` once the MPU6050 is visible on I2C.
+The robot can drive from `/cmd_vel`, publish `/odom`, `/path`, TF from `odom` to `base_link`, publish raw IMU data on `/imu/data_raw`, and animate the onboard OLED from IMU motion.
 
 ## Hardware
 
 - Raspberry Pi Zero 2 W with Ubuntu 24.04 64-bit
 - Two DRV8833 motor driver modules
 - Four DC motors in skid steer
-- MPU6050 IMU breakout
+- MPU6050 IMU breakout on I2C bus 1
+- 0.96 inch 128x64 I2C OLED on the same SDA/SCL bus
+- Six SK6812 Mini-E LEDs wired to `LED_DATA`/GPIO18 for future effects
 - 9 V battery for motors only
 - 5 V buck converter for the Pi only
-- Common ground between Pi, motor drivers, battery, and buck converter
-
-Never feed 9 V into the Pi.
+- Common ground between Pi, motor drivers, battery, buck converter, OLED, and IMU
 
 ## Wiring Summary
 
-Use BCM GPIO numbers in software.
+Use BCM GPIO numbers in software. These pins come from the Orphbot KiCad PCB netlist.
 
-Left DRV8833:
+Left DRV8833 (`D1_*`):
 
-| DRV8833 pin | Pi GPIO | Physical pin |
+| DRV8833 pin | Net | Pi GPIO | Physical pin |
+| --- | --- | --- | --- |
+| IN1 | `D1_IN1` | GPIO6 | 31 |
+| IN2 | `D1_IN2` | GPIO13 | 33 |
+| IN3 | `D1_IN3` | GPIO19 | 35 |
+| IN4 | `D1_IN4` | GPIO26 | 37 |
+| EEP/ULT | unconnected | - | - |
+
+Right DRV8833 (`D2_*`):
+
+| DRV8833 pin | Net | Pi GPIO | Physical pin |
+| --- | --- | --- | --- |
+| IN1 | `D2_IN1` | GPIO12 | 32 |
+| IN2 | `D2_IN2` | GPIO16 | 36 |
+| IN3 | `D2_IN3` | GPIO20 | 38 |
+| IN4 | `D2_IN4` | GPIO21 | 40 |
+| EEP/ULT | unconnected | - | - |
+
+I2C devices:
+
+| Device | Signal | Pi pin |
 | --- | --- | --- |
-| IN1 | GPIO5 | 29 |
-| IN2 | GPIO6 | 31 |
-| IN3 | GPIO13 | 33 |
-| IN4 | GPIO19 | 35 |
-| EEP/SLP | GPIO12 or 3V3 | 32 or 1 |
+| MPU6050 + OLED | SDA | GPIO2/SDA, physical pin 3 |
+| MPU6050 + OLED | SCL | GPIO3/SCL, physical pin 5 |
+| MPU6050 + OLED | VCC | 3V3 |
+| MPU6050 + OLED | GND | GND |
 
-Right DRV8833:
+Accessories:
 
-| DRV8833 pin | Pi GPIO | Physical pin |
-| --- | --- | --- |
-| IN1 | GPIO20 | 38 |
-| IN2 | GPIO21 | 40 |
-| IN3 | GPIO23 | 16 |
-| IN4 | GPIO24 | 18 |
-| EEP/SLP | GPIO12 or 3V3 | 32 or 1 |
-
-MPU6050:
-
-| MPU6050 pin | Pi pin |
-| --- | --- |
-| VCC | 3V3, physical pin 1 |
-| GND | GND, physical pin 6 |
-| SDA | GPIO2/SDA, physical pin 3 |
-| SCL | GPIO3/SCL, physical pin 5 |
-| AD0 | GND for `0x68`, 3V3 for `0x69` |
-| INT | not used by the current node; GPIO4/physical pin 7 if connected |
+| Net | Pi GPIO | Physical pin | Use |
+| --- | --- | --- | --- |
+| `LED_DATA` | GPIO18 | 12 | SK6812 data |
+| `GPIO4` | GPIO4 | 7 | spare header |
+| `GPIO5` | GPIO5 | 29 | spare header |
+| `GPIO9` | GPIO9 | 21 | spare header |
 
 ## Flash And SSH
 
@@ -95,7 +102,7 @@ export ROS_APT_SOURCE_VERSION=$(curl -s https://api.github.com/repos/ros-infrast
 curl -L -o /tmp/ros2-apt-source.deb "https://github.com/ros-infrastructure/ros-apt-source/releases/download/${ROS_APT_SOURCE_VERSION}/ros2-apt-source_${ROS_APT_SOURCE_VERSION}.$(. /etc/os-release && echo ${UBUNTU_CODENAME:-${VERSION_CODENAME}})_all.deb"
 sudo dpkg -i /tmp/ros2-apt-source.deb
 sudo apt update
-sudo apt install -y ros-jazzy-desktop ros-jazzy-rmw-cyclonedds-cpp python3-colcon-common-extensions python3-rosdep git
+sudo apt install -y ros-jazzy-desktop ros-jazzy-rmw-cyclonedds-cpp ros-jazzy-joy ros-jazzy-teleop-twist-joy python3-colcon-common-extensions python3-rosdep python3-tk git
 ```
 
 Initialize `rosdep` once per machine if it has not been initialized:
@@ -192,7 +199,7 @@ source ~/orphbot_ws/src/orphbot-package/orphbot/config/robot_env.sh
 ros2 launch orphbot bringup.launch.py max_pwm:=0.35
 ```
 
-The bringup starts the motor driver, robot description, odometry, MPU6050 node, and a static `map` to `odom` transform for RViz. If the IMU is not detected, fix I2C before treating the robot as complete.
+The bringup starts the motor driver, robot description, odometry, MPU6050 node, OLED fluid display, and a static `map` to `odom` transform for RViz. If the OLED is disconnected, use `use_oled:=false` while debugging. If the IMU is not detected, fix I2C before treating the robot as complete.
 
 For a first controlled motor check from another terminal on the robot, keep the robot on the stand and publish a short slow command:
 
@@ -219,7 +226,9 @@ Repeat with `left_rear`, `right_front`, and `right_rear`. If one motor only spin
 
 ## Drive From The Laptop
 
-In a laptop terminal with the same ROS environment variables:
+Start robot bringup on the Pi first, then use one of these laptop options with the same ROS environment variables.
+
+Keyboard option:
 
 ```bash
 source /opt/ros/jazzy/setup.bash
@@ -228,7 +237,19 @@ source ~/orphbot_ws/src/orphbot-package/orphbot/config/wsl_env.sh
 ros2 run orphbot keyboard_teleop
 ```
 
-Keys: hold `W` forward, hold `S` backward, hold `A` left, hold `D` right, Space or `X` stop, `+` faster, `-` slower, `Q` quit. The laptop teleop opens a small GUI window so it can use real key press and key release events instead of terminal text input repeat behavior.
+Keys: hold `W` forward, hold `S` backward, hold `A` left, hold `D` right, Space or `X` stop, `+` faster, `-` slower, `Q` quit. The keyboard teleop opens a small GUI window so it can use real key press and key release events.
+
+Xbox controller option:
+
+```bash
+source /opt/ros/jazzy/setup.bash
+source ~/orphbot_ws/install/setup.bash
+source ~/orphbot_ws/src/orphbot-package/orphbot/config/wsl_env.sh
+ls /dev/input/js*
+ros2 launch orphbot xbox_teleop.launch.py joy_dev:=/dev/input/js0
+```
+
+The Xbox launch uses the standard ROS 2 `joy` driver and `teleop_twist_joy`. Hold the left trigger to enable motion, use the left stick to drive, and hold the right trigger for turbo speed.
 
 ## Run RViz From The Laptop
 

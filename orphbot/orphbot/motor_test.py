@@ -4,10 +4,10 @@ import time
 
 def pin_pair(name):
     pins = {
-        'left_front': (5, 6),
-        'left_rear': (13, 19),
-        'right_front': (20, 21),
-        'right_rear': (23, 24),
+        'left_front': (6, 13),
+        'left_rear': (19, 26),
+        'right_front': (12, 16),
+        'right_rear': (20, 21),
     }
     return pins[name]
 

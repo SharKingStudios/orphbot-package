@@ -1,6 +1,7 @@
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
+from launch.conditions import IfCondition
 from launch.substitutions import Command, LaunchConfiguration
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
@@ -11,6 +12,7 @@ def generate_launch_description():
     urdf_path = f'{package_share}/urdf/robot.urdf.xacro'
     config_path = f'{package_share}/config/orphbot.yaml'
     max_pwm = LaunchConfiguration('max_pwm')
+    use_oled = LaunchConfiguration('use_oled')
     robot_description = ParameterValue(
         Command(['xacro ', urdf_path]),
         value_type=str,
@@ -18,6 +20,7 @@ def generate_launch_description():
 
     return LaunchDescription([
         DeclareLaunchArgument('max_pwm', default_value='0.35'),
+        DeclareLaunchArgument('use_oled', default_value='true'),
         Node(
             package='tf2_ros',
             executable='static_transform_publisher',
@@ -47,6 +50,14 @@ def generate_launch_description():
             executable='mpu6050_node',
             name='mpu6050_node',
             output='screen',
+            parameters=[config_path],
+        ),
+        Node(
+            package='orphbot',
+            executable='oled_fluid',
+            name='oled_fluid',
+            output='screen',
+            condition=IfCondition(use_oled),
             parameters=[config_path],
         ),
         Node(

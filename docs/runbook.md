@@ -405,10 +405,10 @@ Each command runs one motor forward, stops, then runs it reverse. If one phase w
 Configured motor GPIO pairs:
 
 ```text
-left_front: GPIO5/GPIO6
-left_rear: GPIO13/GPIO19
-right_front: GPIO20/GPIO21
-right_rear: GPIO23/GPIO24
+left_front: GPIO6/GPIO13
+left_rear: GPIO19/GPIO26
+right_front: GPIO12/GPIO16
+right_rear: GPIO20/GPIO21
 ```
 
 ## Laptop Install And Build
@@ -427,7 +427,7 @@ export ROS_APT_SOURCE_VERSION=$(curl -s https://api.github.com/repos/ros-infrast
 curl -L -o /tmp/ros2-apt-source.deb "https://github.com/ros-infrastructure/ros-apt-source/releases/download/${ROS_APT_SOURCE_VERSION}/ros2-apt-source_${ROS_APT_SOURCE_VERSION}.$(. /etc/os-release && echo ${UBUNTU_CODENAME:-${VERSION_CODENAME}})_all.deb"
 sudo dpkg -i /tmp/ros2-apt-source.deb
 sudo apt update
-sudo apt install -y ros-jazzy-desktop ros-jazzy-rmw-cyclonedds-cpp python3-colcon-common-extensions python3-rosdep git
+sudo apt install -y ros-jazzy-desktop ros-jazzy-rmw-cyclonedds-cpp ros-jazzy-joy ros-jazzy-teleop-twist-joy python3-colcon-common-extensions python3-rosdep python3-tk git
 sudo rosdep init || true
 rosdep update
 ```

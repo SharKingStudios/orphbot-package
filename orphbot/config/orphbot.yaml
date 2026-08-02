@@ -6,10 +6,10 @@ motor_driver:
     max_linear_speed: 0.4
     max_angular_speed: 1.5
     enable_pin: -1
-    left_front_pins: [5, 6]
-    left_rear_pins: [13, 19]
-    right_front_pins: [20, 21]
-    right_rear_pins: [23, 24]
+    left_front_pins: [6, 13]
+    left_rear_pins: [19, 26]
+    right_front_pins: [12, 16]
+    right_rear_pins: [20, 21]
     invert_left: false
     invert_right: false
 
@@ -31,3 +31,21 @@ mpu6050_node:
     address: 104
     frame_id: imu_link
     publish_rate: 20.0
+
+oled_fluid:
+  ros__parameters:
+    bus: 1
+    address: 60
+    width: 128
+    height: 64
+    display_rate: 15.0
+    particle_count: 42
+    imu_topic: imu/data_raw
+    splash_seconds: 1.5
+
+orphbot_accessories:
+  ros__parameters:
+    oled_i2c_address: 60
+    led_data_pin: 18
+    led_count: 6
+    spare_gpio_pins: [4, 5, 7, 8, 9, 10, 11, 14, 15, 22, 23, 24, 25]
